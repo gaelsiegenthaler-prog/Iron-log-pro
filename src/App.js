@@ -40,7 +40,7 @@ function SplashScreen({ onDone, isDark, lang }) {
       <div style={{ fontSize:11,fontWeight:700,letterSpacing:4,color:ac,textTransform:"uppercase",marginBottom:60,transition:"opacity 0.8s ease, transform 0.8s ease",opacity:phase==="visible"?1:0,transform:phase==="visible"?"translateY(0)":"translateY(-10px)" }}>IRON LOG PRO</div>
       <div style={{ textAlign:"center",transition:"opacity 0.9s ease 0.2s, transform 0.9s ease 0.2s",opacity:phase==="visible"?1:0,transform:phase==="visible"?"translateY(0)":"translateY(20px)" }}>
         <div style={{ width:40,height:3,background:ac,borderRadius:2,margin:"0 auto 28px" }}/>
-        <div style={{ fontSize:24,fontWeight:800,lineHeight:1.35,color:tc,marginBottom:20 }}>"{quote.current.text}"</div>
+        <div style={{ fontSize:22,fontWeight:800,lineHeight:1.4,color:tc,marginBottom:20 }}>"{quote.current.text}"</div>
         {quote.current.author && <div style={{ fontSize:14,color:mc,fontWeight:600 }}>— {quote.current.author}</div>}
         <div style={{ width:40,height:3,background:ac,borderRadius:2,margin:"28px auto 0" }}/>
       </div>
@@ -132,14 +132,15 @@ const DEFAULT_LIBRARY = [
 const CATEGORIES = ["Pectoraux","Dos","Épaules","Biceps","Triceps","Jambes","Abdos","Cardio","Autre"];
 const TYPE_COLORS = { weight:"#2563eb", bodyweight:"#059669", cardio:"#dc2626" };
 const PROGRAM_COLORS = ["#2563eb","#059669","#dc2626","#7c3aed","#ea580c","#db2777","#0891b2","#65a30d"];
-const ALL_TABS = ["journal","split","history","stats","body","library"];
+const ALL_TABS = ["home","session","split","history","stats","body","library"];
 const TAB_META = {
-  journal: { fr:"Session",    en:"Session",   icon:"◉" },
-  split:   { fr:"Split",      en:"Split",     icon:"◫" },
-  history: { fr:"Historique", en:"History",   icon:"≡" },
-  stats:   { fr:"Stats",      en:"Stats",     icon:"↗" },
-  body:    { fr:"Corps",      en:"Body",      icon:"◎" },
-  library: { fr:"Exercices",  en:"Exercises", icon:"▦" },
+  home:    { fr:"Accueil",    en:"Home",      icon:"⌂" },
+  session: { fr:"Session",   en:"Session",   icon:"◉" },
+  split:   { fr:"Split",     en:"Split",     icon:"◫" },
+  history: { fr:"Historique",en:"History",   icon:"≡" },
+  stats:   { fr:"Stats",     en:"Stats",     icon:"↗" },
+  body:    { fr:"Corps",     en:"Body",      icon:"◎" },
+  library: { fr:"Exercices", en:"Exercises", icon:"▦" },
 };
 const MOOD_OPTIONS = [{v:1,fr:"Mauvaise",en:"Bad"},{v:2,fr:"Moyenne",en:"Meh"},{v:3,fr:"Bonne",en:"Good"},{v:4,fr:"Top",en:"Top"}];
 const ENERGY_OPTIONS = [{v:1,label:"—"},{v:2,label:"+"},{v:3,label:"++"},{v:4,label:"+++"}];
@@ -147,10 +148,15 @@ const REST_PRESETS = [30,60,90,120,180];
 
 const today = () => new Date().toISOString().split("T")[0];
 const getHour = () => new Date().getHours();
-const calcVolume = (sets) => sets.reduce((a,s)=>a+(parseFloat(s.reps)||0)*(parseFloat(s.weight)||0),0);
+const isHalteres = (name) => name.toLowerCase().includes("haltère") || name.toLowerCase().includes("halteres") || name.toLowerCase().includes("dumbell");
+const calcVolume = (sets, name="") => {
+  const mult = isHalteres(name) ? 2 : 1;
+  return sets.reduce((a,s)=>a+(parseFloat(s.reps)||0)*(parseFloat(s.weight)||0)*mult, 0);
+};
 const calcPR = (sets) => Math.max(0,...sets.map(s=>parseFloat(s.weight)||0));
 const fmtDate  = (d,lang) => new Date(d+"T00:00:00").toLocaleDateString(lang==="en"?"en-US":"fr-FR",{weekday:"long",day:"numeric",month:"long"});
 const fmtShort = (d,lang) => new Date(d+"T00:00:00").toLocaleDateString(lang==="en"?"en-US":"fr-FR",{weekday:"short",day:"numeric",month:"short"});
+const fmtTime  = (iso) => { if(!iso) return ""; const d=new Date(iso); return `${d.getHours()}h${String(d.getMinutes()).padStart(2,"0")}`; };
 
 function Sparkline({ data, color="#2563eb", width=160, height=44 }) {
   if (!data||data.length<2) return null;
@@ -202,7 +208,7 @@ function RestTimer({ C, T, isDark }) {
 export default function IronLogPro() {
   const [settings, setSettings] = useState({ theme:"auto",lang:"fr",username:"",unit:"kg",tabOrder:[...ALL_TABS],hiddenTabs:[] });
   const [splashDone, setSplashDone] = useState(false);
-  const [view, setView] = useState("journal");
+  const [view, setView] = useState("home");
   const [selectedDate, setSelectedDate] = useState(today());
   const [sessions, setSessions] = useState({});
   const [library, setLibrary] = useState(DEFAULT_LIBRARY);
@@ -211,20 +217,26 @@ export default function IronLogPro() {
   const [toast, setToast] = useState(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [resetConfirm, setResetConfirm] = useState(false);
+  // Session UI
   const [addingEx, setAddingEx] = useState(false);
   const [filterCat, setFilterCat] = useState("Tout");
   const [searchQ, setSearchQ] = useState("");
   const [statsEx, setStatsEx] = useState(null);
   const [showTimer, setShowTimer] = useState(false);
   const [duplicateModal, setDuplicateModal] = useState(false);
+  const [closeModal, setCloseModal] = useState(false);
+  const [closeName, setCloseName] = useState("");
+  // Library UI
   const [creatingEx, setCreatingEx] = useState(false);
   const [newEx, setNewEx] = useState({name:"",category:"Pectoraux",type:"weight"});
   const [editingLib, setEditingLib] = useState(false);
+  // Split UI
   const [editingProgram, setEditingProgram] = useState(null);
   const [editingDay, setEditingDay] = useState(null);
   const [addingDayEx, setAddingDayEx] = useState(false);
   const [creatingProgram, setCreatingProgram] = useState(false);
   const [newProg, setNewProg] = useState({name:"",color:"#2563eb"});
+  // Body UI
   const [newBodyWeight, setNewBodyWeight] = useState("");
   const [newBodyDate, setNewBodyDate] = useState(today());
 
@@ -262,14 +274,16 @@ export default function IronLogPro() {
 
   const visibleTabs = (settings.tabOrder||ALL_TABS).filter(t=>!(settings.hiddenTabs||[]).includes(t));
   const activeProgram = programs.find(p=>p.active);
-  const session = sessions[selectedDate]||{exercises:[],note:"",mood:0,energy:0};
-  const totalVolume = session.exercises.reduce((a,e)=>a+calcVolume(e.sets),0);
+  const session = sessions[selectedDate]||{exercises:[],note:"",mood:0,energy:0,closed:false,sessionName:""};
+  const totalVolume = session.exercises.reduce((a,e)=>a+calcVolume(e.sets,e.name),0);
+
   const filteredLib = library.filter(e=>{
     const mc=filterCat==="Tout"||filterCat==="All"||e.category===filterCat;
     const ms=e.name.toLowerCase().includes(searchQ.toLowerCase());
     return mc&&ms;
   });
 
+  // ── Helpers ──
   const getLastPerf = (exId) => {
     const dates=Object.keys(sessions).sort().filter(d=>d<selectedDate);
     for(let i=dates.length-1;i>=0;i--){
@@ -284,8 +298,8 @@ export default function IronLogPro() {
   const addExToSession = (ex) => {
     const lastPerf=getLastPerf(ex.id);
     const sets=lastPerf
-      ? lastPerf.sets.map(s=>({reps:"",weight:"",targetReps:s.reps,targetWeight:s.weight}))
-      : [{reps:"",weight:"",targetReps:"",targetWeight:""}];
+      ? lastPerf.sets.map(s=>({reps:"",weight:"",targetReps:s.reps,targetWeight:s.weight,comment:""}))
+      : [{reps:"",weight:"",targetReps:"",targetWeight:"",comment:""}];
     updateSession({exercises:[...session.exercises,{...ex,sets}]});
     setAddingEx(false);
     showToast(`${ex.name} ${T("ajouté","added")}`);
@@ -295,36 +309,57 @@ export default function IronLogPro() {
     const exs=session.exercises.map((e,i)=>i!==ei?e:{...e,sets:e.sets.map((s,j)=>j!==si?s:{...s,[field]:val})});
     updateSession({exercises:exs});
   };
+
   const addSet = (ei) => {
     const exs=session.exercises.map((e,i)=>{
       if(i!==ei) return e;
       const last=e.sets[e.sets.length-1];
-      return {...e,sets:[...e.sets,{reps:"",weight:"",targetReps:last?.targetReps||"",targetWeight:last?.targetWeight||""}]};
+      return {...e,sets:[...e.sets,{reps:"",weight:"",targetReps:last?.targetReps||"",targetWeight:last?.targetWeight||"",comment:""}]};
     });
     updateSession({exercises:exs});
   };
+
   const removeSet = (ei,si) => {
     const exs=session.exercises.map((e,i)=>i!==ei?e:{...e,sets:e.sets.filter((_,j)=>j!==si)}).filter(e=>e.sets.length>0);
     updateSession({exercises:exs});
   };
+
   const removeEx = (ei) => updateSession({exercises:session.exercises.filter((_,i)=>i!==ei)});
 
+  // ── Close session ──
+  const handleCloseSession = () => {
+    const launchedName = session.sessionName;
+    if (launchedName) {
+      finalizeSession(launchedName);
+    } else {
+      setCloseName("");
+      setCloseModal(true);
+    }
+  };
+
+  const finalizeSession = (name) => {
+    updateSession({ closed:true, sessionName:name, closedAt:new Date().toISOString() });
+    setCloseModal(false);
+    showToast(`${T("Séance","Session")} "${name}" ${T("terminée !","closed!")}`);
+  };
+
+  // ── Launch day ──
   const launchDay = (day) => {
     const newExs=day.exercises.map(ex=>{
       const lastPerf=getLastPerf(ex.id);
       const sets=lastPerf
-        ? lastPerf.sets.map(s=>({reps:"",weight:"",targetReps:s.reps,targetWeight:s.weight}))
-        : [{reps:"",weight:"",targetReps:"",targetWeight:""}];
+        ? lastPerf.sets.map(s=>({reps:"",weight:"",targetReps:s.reps,targetWeight:s.weight,comment:""}))
+        : [{reps:"",weight:"",targetReps:"",targetWeight:"",comment:""}];
       return {...ex,sets};
     });
-    updateSession({exercises:[...session.exercises,...newExs]});
-    setView("journal");
+    updateSession({exercises:[...session.exercises,...newExs], sessionName:day.name, startedAt:new Date().toISOString()});
+    setView("session");
     showToast(`${day.name} ${T("lancé !","started!")}`);
   };
 
   const duplicateSession = (fromDate) => {
     const src=sessions[fromDate]; if(!src) return;
-    const copied=src.exercises.map(e=>({...e,sets:e.sets.map(s=>({...s,reps:"",weight:""}))}));
+    const copied=src.exercises.map(e=>({...e,sets:e.sets.map(s=>({...s,reps:"",weight:"",comment:""}))}));
     updateSession({exercises:[...session.exercises,...copied]});
     setDuplicateModal(false);
     showToast(T("Session dupliquée !","Session duplicated!"));
@@ -333,15 +368,30 @@ export default function IronLogPro() {
   const getExStats = (exId) => {
     const pts=[];
     Object.entries(sessions).sort(([a],[b])=>a>b?1:-1).forEach(([date,s])=>{
-      s.exercises?.forEach(e=>{ if(e.id===exId){const pr=calcPR(e.sets),vol=calcVolume(e.sets);if(pr>0||vol>0)pts.push({date,pr,vol});} });
+      s.exercises?.forEach(e=>{ if(e.id===exId){const pr=calcPR(e.sets),vol=calcVolume(e.sets,e.name);if(pr>0||vol>0)pts.push({date,pr,vol});} });
     });
     return pts;
   };
 
-  const gs = () => {
-    const ds=Object.keys(sessions).filter(d=>sessions[d].exercises?.length>0);
-    return { sessions:ds.length, volume:ds.reduce((a,d)=>a+sessions[d].exercises.reduce((b,e)=>b+calcVolume(e.sets),0),0), sets:ds.reduce((a,d)=>a+sessions[d].exercises.reduce((b,e)=>b+e.sets.length,0),0), exercises:library.length };
+  // ── Global stats ──
+  const closedSessions = Object.entries(sessions).filter(([,s])=>s.closed&&s.exercises?.length>0);
+  const totalSessions = closedSessions.length;
+  const allVolume = closedSessions.reduce((a,[,s])=>a+s.exercises.reduce((b,e)=>b+calcVolume(e.sets,e.name),0),0);
+
+  // streak
+  const getStreak = () => {
+    const dates=Object.keys(sessions).filter(d=>sessions[d].closed).sort().reverse();
+    if(!dates.length) return 0;
+    let streak=0; let cur=new Date(); cur.setHours(0,0,0,0);
+    for(const d of dates){
+      const dd=new Date(d+"T00:00:00"); dd.setHours(0,0,0,0);
+      const diff=Math.round((cur-dd)/(1000*60*60*24));
+      if(diff<=1){ streak++; cur=dd; } else break;
+    }
+    return streak;
   };
+
+  const gs = () => ({ sessions:totalSessions, volume:allVolume, streak:getStreak(), exercises:library.length });
 
   const exportData = () => {
     const blob=new Blob([JSON.stringify({sessions,library,programs,bodyLog,settings,exportedAt:new Date().toISOString()},null,2)],{type:"application/json"});
@@ -359,6 +409,7 @@ export default function IronLogPro() {
   };
   const goTo = id => { setView(id); setStatsEx(null); setEditingProgram(null); setEditingDay(null); setAddingDayEx(false); setShowTimer(false); };
 
+  // ── Styles ──
   const inp = {background:C.inputBg,border:`1.5px solid ${C.border}`,borderRadius:8,color:C.text,padding:"9px 10px",fontSize:15,fontFamily:"inherit",width:"100%",textAlign:"center",boxSizing:"border-box",outline:"none"};
   const pill = (active,color) => ({padding:"6px 14px",borderRadius:20,border:"none",background:active?(color||C.accent):(isDark?"#26262f":"#ececea"),color:active?"#fff":C.muted,fontSize:12,fontWeight:600,cursor:"pointer",whiteSpace:"nowrap",fontFamily:"inherit",letterSpacing:0.3});
   const btn  = color => ({background:color||C.accent,border:"none",borderRadius:10,color:"#fff",padding:"12px 20px",fontWeight:700,fontSize:14,cursor:"pointer",fontFamily:"inherit",letterSpacing:0.3});
@@ -367,6 +418,13 @@ export default function IronLogPro() {
   const modal = {position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:100,display:"flex",alignItems:"flex-end"};
   const mbox  = {background:C.card,width:"100%",maxWidth:480,margin:"0 auto",borderRadius:"20px 20px 0 0",padding:"20px",maxHeight:"80vh",overflowY:"auto"};
   const sec   = {fontSize:11,fontWeight:700,color:C.muted,letterSpacing:1,textTransform:"uppercase",marginBottom:8,marginTop:18,display:"block"};
+
+  const weekDays = () => {
+    const days=[]; const now=new Date(); const dow=now.getDay();
+    const monday=new Date(now); monday.setDate(now.getDate()-(dow===0?6:dow-1));
+    for(let i=0;i<7;i++){const d=new Date(monday);d.setDate(monday.getDate()+i);days.push(d.toISOString().split("T")[0]);}
+    return days;
+  };
 
   return (
     <div style={{minHeight:"100vh",background:C.bg,color:C.text,fontFamily:"'Barlow','Trebuchet MS',sans-serif",maxWidth:480,margin:"0 auto",paddingBottom:80}}>
@@ -377,14 +435,16 @@ export default function IronLogPro() {
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
           <div>
             <div style={{fontSize:10,fontWeight:700,letterSpacing:3,color:C.blue,textTransform:"uppercase"}}>IRON LOG PRO</div>
-            <div style={{fontSize:20,fontWeight:800,lineHeight:1.1}}>{settings.username?`${T("Bonjour","Hey")}, ${settings.username}`:(TAB_META[view]?.[lang]||T("Paramètres","Settings"))}</div>
+            <div style={{fontSize:20,fontWeight:800,lineHeight:1.1}}>
+              {view==="home"?(settings.username?`${T("Bonjour","Hey")}, ${settings.username}`:T("Accueil","Home")):(TAB_META[view]?.[lang]||"?")}
+            </div>
           </div>
           <div style={{display:"flex",gap:8,alignItems:"center"}}>
-            {view==="journal"&&<input type="date" value={selectedDate} onChange={e=>setSelectedDate(e.target.value)} style={{...inp,width:"auto",fontSize:12,padding:"7px 10px",textAlign:"left"}}/>}
+            {view==="session"&&<input type="date" value={selectedDate} onChange={e=>setSelectedDate(e.target.value)} style={{...inp,width:"auto",fontSize:12,padding:"7px 10px",textAlign:"left"}}/>}
             <button onClick={()=>setSettingsOpen(true)} style={{background:C.sub,border:`1px solid ${C.border}`,borderRadius:10,width:38,height:38,cursor:"pointer",fontSize:17,display:"flex",alignItems:"center",justifyContent:"center"}}>⚙</button>
           </div>
         </div>
-        {activeProgram&&(
+        {activeProgram&&view==="home"&&(
           <div style={{marginTop:8,display:"inline-flex",alignItems:"center",gap:6,background:activeProgram.color+"18",border:`1px solid ${activeProgram.color}44`,borderRadius:20,padding:"4px 12px"}}>
             <div style={{width:8,height:8,borderRadius:"50%",background:activeProgram.color}}/>
             <span style={{fontSize:12,fontWeight:700,color:activeProgram.color}}>{activeProgram.name}</span>
@@ -392,17 +452,117 @@ export default function IronLogPro() {
         )}
       </div>
 
-      {/* JOURNAL */}
-      {view==="journal"&&(
+      {/* ══ HOME ══ */}
+      {view==="home"&&(()=>{
+        const g=gs();
+        const wdays=weekDays();
+        const lastClosed=Object.entries(sessions).filter(([,s])=>s.closed).sort(([a],[b])=>a>b?-1:1)[0];
+        return (
+          <div style={{padding:"14px 16px"}}>
+            {/* KPI row */}
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginBottom:16}}>
+              {[
+                {l:T("Sessions","Sessions"),v:g.sessions,c:C.blue},
+                {l:T("Streak","Streak"),v:`${g.streak}j`,c:C.orange},
+                {l:"Volume",v:g.volume>0?`${(g.volume/1000).toFixed(1)}t`:"—",c:C.green},
+              ].map(s=>(
+                <div key={s.l} style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:12,padding:"12px 8px",textAlign:"center"}}>
+                  <div style={{fontSize:20,fontWeight:800,color:s.c}}>{s.v}</div>
+                  <div style={{fontSize:10,color:C.muted,fontWeight:600,letterSpacing:0.5,textTransform:"uppercase",marginTop:2}}>{s.l}</div>
+                </div>
+              ))}
+            </div>
+
+            {/* Semaine */}
+            <div style={{...card,padding:"14px 16px",marginBottom:14}}>
+              <div style={{fontWeight:700,fontSize:13,marginBottom:10,color:C.muted,textTransform:"uppercase",letterSpacing:0.5}}>{T("Cette semaine","This week")}</div>
+              <div style={{display:"flex",gap:4}}>
+                {wdays.map(d=>{
+                  const s=sessions[d];
+                  const done=s?.closed;
+                  const isToday=d===today();
+                  const dayName=new Date(d+"T00:00:00").toLocaleDateString(lang==="en"?"en-US":"fr-FR",{weekday:"short"}).slice(0,2).toUpperCase();
+                  return (
+                    <div key={d} onClick={()=>{setSelectedDate(d);setView("session");}} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:4,cursor:"pointer"}}>
+                      <div style={{fontSize:9,fontWeight:700,color:isToday?C.blue:C.muted}}>{dayName}</div>
+                      <div style={{width:32,height:32,borderRadius:"50%",background:done?C.green:isToday?C.blue+"22":"transparent",border:`2px solid ${done?C.green:isToday?C.blue:C.border}`,display:"flex",alignItems:"center",justifyContent:"center"}}>
+                        {done&&<div style={{width:12,height:12,borderRadius:"50%",background:"#fff"}}/>}
+                        {!done&&isToday&&<div style={{width:8,height:8,borderRadius:"50%",background:C.blue}}/>}
+                      </div>
+                      {done&&s.sessionName&&<div style={{fontSize:8,color:C.green,fontWeight:700,textAlign:"center",maxWidth:36,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{s.sessionName}</div>}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Dernière séance */}
+            {lastClosed&&(
+              <div style={{...card,marginBottom:14}}>
+                <div style={{padding:"12px 16px"}}>
+                  <div style={{fontSize:11,fontWeight:700,color:C.muted,textTransform:"uppercase",letterSpacing:0.5,marginBottom:6}}>{T("Dernière séance","Last session")}</div>
+                  <div style={{fontWeight:800,fontSize:16}}>{lastClosed[1].sessionName||T("Séance","Session")}</div>
+                  <div style={{fontSize:12,color:C.muted,marginTop:2,textTransform:"capitalize"}}>{fmtDate(lastClosed[0],lang)}</div>
+                  <div style={{fontSize:12,color:C.muted,marginTop:2}}>{lastClosed[1].exercises?.length} {T("exercice(s)","exercise(s)")} · {calcVolume(lastClosed[1].exercises?.flatMap(e=>e.sets)||[]).toLocaleString("fr-FR")} {unit}</div>
+                </div>
+              </div>
+            )}
+
+            {/* Programme actif — lancer un jour */}
+            {activeProgram&&(activeProgram.days||[]).length>0&&(
+              <div>
+                <div style={{fontSize:11,fontWeight:700,color:C.muted,textTransform:"uppercase",letterSpacing:0.5,marginBottom:8}}>{T("Lancer une séance","Start a session")}</div>
+                {activeProgram.days.map((day,di)=>(
+                  <div key={di} style={{display:"flex",alignItems:"center",justifyContent:"space-between",background:activeProgram.color+"10",border:`1px solid ${activeProgram.color}33`,borderRadius:12,padding:"12px 16px",marginBottom:8}}>
+                    <div>
+                      <div style={{fontWeight:700,fontSize:15,color:activeProgram.color}}>{day.name}</div>
+                      <div style={{fontSize:11,color:C.muted,marginTop:2}}>{(day.exercises||[]).map(e=>e.name).join(" · ")}</div>
+                    </div>
+                    <button onClick={()=>launchDay(day)} style={{...btn(activeProgram.color),padding:"8px 16px",fontSize:13,borderRadius:8,flexShrink:0,marginLeft:8}}>
+                      {T("Lancer","Start")}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {!activeProgram&&(
+              <div style={{textAlign:"center",padding:"24px 20px",border:`1.5px dashed ${C.border}`,borderRadius:14,color:C.muted}}>
+                <div style={{fontSize:13,marginBottom:8}}>{T("Aucun programme actif","No active program")}</div>
+                <button onClick={()=>goTo("split")} style={{...btn(C.blue),padding:"9px 18px",fontSize:13,borderRadius:8}}>{T("Créer un programme","Create program")}</button>
+              </div>
+            )}
+          </div>
+        );
+      })()}
+
+      {/* ══ SESSION ══ */}
+      {view==="session"&&(
         <div style={{padding:"14px 16px"}}>
+          {/* Session name badge */}
+          {session.sessionName&&(
+            <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12}}>
+              <div style={{background:C.blue+"18",border:`1px solid ${C.blue}33`,borderRadius:20,padding:"5px 14px",fontSize:13,fontWeight:700,color:C.blue}}>{session.sessionName}</div>
+              {session.closed&&<span style={{...tag(C.green),fontSize:10}}>{T("CLÔTURÉE","CLOSED")}</span>}
+              {session.closedAt&&<span style={{fontSize:11,color:C.muted}}>{fmtTime(session.closedAt)}</span>}
+            </div>
+          )}
+
+          {/* Stats bar */}
           <div style={{display:"flex",gap:8,marginBottom:14}}>
-            {[{l:T("Exercices","Exercises"),v:session.exercises.length},{l:T("Séries","Sets"),v:session.exercises.reduce((a,e)=>a+e.sets.length,0)},{l:"Volume",v:totalVolume>0?`${totalVolume.toLocaleString("fr-FR")} ${unit}`:"—"}].map(s=>(
+            {[
+              {l:T("Exercices","Exercises"),v:session.exercises.length},
+              {l:T("Séries","Sets"),v:session.exercises.reduce((a,e)=>a+e.sets.length,0)},
+              {l:"Volume",v:totalVolume>0?`${totalVolume.toLocaleString("fr-FR")} ${unit}`:"—"}
+            ].map(s=>(
               <div key={s.l} style={{flex:1,background:C.card,border:`1px solid ${C.border}`,borderRadius:12,padding:"10px 8px",textAlign:"center"}}>
                 <div style={{fontSize:16,fontWeight:800}}>{s.v}</div>
                 <div style={{fontSize:10,color:C.muted,fontWeight:600,letterSpacing:0.5,textTransform:"uppercase"}}>{s.l}</div>
               </div>
             ))}
           </div>
+
+          {/* Note */}
           <div style={{...card,marginBottom:12}}>
             <div style={{padding:"12px 16px"}}>
               <div style={{fontSize:11,fontWeight:700,color:C.muted,letterSpacing:0.5,textTransform:"uppercase",marginBottom:8}}>{T("Note de session","Session note")}</div>
@@ -419,75 +579,107 @@ export default function IronLogPro() {
               </div>
             </div>
           </div>
+
+          {/* Quick actions */}
           <div style={{display:"flex",gap:8,marginBottom:10,flexWrap:"wrap"}}>
-            <button onClick={()=>setShowTimer(!showTimer)} style={{...pill(showTimer,C.blue),padding:"8px 14px",fontSize:12}}>{showTimer?T("Masquer chrono","Hide timer"):T("Chrono de repos","Rest timer")}</button>
-            <button onClick={()=>setDuplicateModal(true)} style={{...pill(false),padding:"8px 14px",fontSize:12}}>{T("Dupliquer session","Duplicate session")}</button>
+            <button onClick={()=>setShowTimer(!showTimer)} style={{...pill(showTimer,C.blue),padding:"8px 14px",fontSize:12}}>{showTimer?T("Masquer chrono","Hide timer"):T("Chrono","Timer")}</button>
+            <button onClick={()=>setDuplicateModal(true)} style={{...pill(false),padding:"8px 14px",fontSize:12}}>{T("Dupliquer","Duplicate")}</button>
           </div>
           {showTimer&&<RestTimer C={C} T={T} isDark={isDark}/>}
+
           {session.exercises.length===0&&(
             <div style={{textAlign:"center",padding:"44px 20px",border:`1.5px dashed ${C.border}`,borderRadius:14,color:C.muted}}>
               <div style={{fontSize:32,marginBottom:8}}>+</div>
               <div style={{fontWeight:600}}>{T("Aucun exercice","No exercises yet")}</div>
-              <div style={{fontSize:13,marginTop:4}}>{T("Ajoute un exercice ou lance un jour depuis Split","Add an exercise or start a day from Split")}</div>
+              <div style={{fontSize:13,marginTop:4}}>{T("Lance un jour depuis Accueil ou ajoute un exercice","Start a day from Home or add an exercise")}</div>
             </div>
           )}
+
           {session.exercises.map((ex,ei)=>{
-            const pr=calcPR(ex.sets),vol=calcVolume(ex.sets);
+            const pr=calcPR(ex.sets);
+            const vol=calcVolume(ex.sets,ex.name);
+            const isDb=isHalteres(ex.name);
             return (
               <div key={ei} style={card}>
                 <div style={{padding:"12px 16px",borderBottom:`1px solid ${C.border}`,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
                   <div>
-                    <div style={{fontWeight:700,fontSize:15}}>{ex.name}</div>
+                    <div style={{display:"flex",alignItems:"center",gap:8}}>
+                      <div style={{fontWeight:700,fontSize:15}}>{ex.name}</div>
+                      {isDb&&<span style={{...tag(C.orange),fontSize:9}}>×2</span>}
+                    </div>
                     <div style={{display:"flex",gap:5,marginTop:4}}><span style={tag(TYPE_COLORS[ex.type]||C.blue)}>{TL[ex.type]||ex.type}</span><span style={tag("#888")}>{ex.category}</span></div>
                   </div>
                   <button onClick={()=>removeEx(ei)} style={{background:"none",border:"none",color:C.muted,fontSize:20,cursor:"pointer"}}>×</button>
                 </div>
                 <div style={{padding:"12px 16px"}}>
                   <div style={{display:"grid",gridTemplateColumns:"28px 1fr 1fr 32px",gap:6,marginBottom:4,fontSize:10,color:C.muted,fontWeight:700,letterSpacing:1,textTransform:"uppercase"}}>
-                    <div>#</div><div style={{textAlign:"center"}}>{T("Reps","Reps")}</div><div style={{textAlign:"center"}}>{T("Poids","Weight")} ({unit})</div><div/>
+                    <div>#</div><div style={{textAlign:"center"}}>{T("Reps","Reps")}</div><div style={{textAlign:"center"}}>{isDb?T("Poids/haltère","Weight/db"):T("Poids","Weight")} ({unit})</div><div/>
                   </div>
                   {ex.sets.map((set,si)=>{
                     const hasTarget=set.targetReps||set.targetWeight;
                     return (
-                      <div key={si} style={{marginBottom:8}}>
+                      <div key={si} style={{marginBottom:10}}>
                         {hasTarget&&(
                           <div style={{display:"grid",gridTemplateColumns:"28px 1fr 1fr 32px",gap:6,marginBottom:2}}>
-                            <div/>
-                            <div style={{textAlign:"center",fontSize:11,color:C.muted,fontStyle:"italic",opacity:0.7}}>{set.targetReps||""}</div>
-                            <div style={{textAlign:"center",fontSize:11,color:C.muted,fontStyle:"italic",opacity:0.7}}>{set.targetWeight?`${set.targetWeight} ${unit}`:""}</div>
-                            <div/>
+                            <div/><div style={{textAlign:"center",fontSize:11,color:C.muted,fontStyle:"italic",opacity:0.7}}>{set.targetReps||""}</div>
+                            <div style={{textAlign:"center",fontSize:11,color:C.muted,fontStyle:"italic",opacity:0.7}}>{set.targetWeight?`${set.targetWeight} ${unit}`:""}</div><div/>
                           </div>
                         )}
-                        <div style={{display:"grid",gridTemplateColumns:"28px 1fr 1fr 32px",gap:6,alignItems:"center"}}>
+                        <div style={{display:"grid",gridTemplateColumns:"28px 1fr 1fr 32px",gap:6,alignItems:"center",marginBottom:4}}>
                           <div style={{width:24,height:24,borderRadius:"50%",background:C.sub,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:700,color:C.muted}}>{si+1}</div>
                           <input type="number" placeholder={set.targetReps||"—"} value={set.reps} onChange={e=>updateSet(ei,si,"reps",e.target.value)} style={inp}/>
                           <input type="number" placeholder={set.targetWeight||"—"} value={set.weight} onChange={e=>updateSet(ei,si,"weight",e.target.value)} style={inp}/>
                           <button onClick={()=>removeSet(ei,si)} style={{background:"none",border:"none",color:isDark?"#444":"#ccc",cursor:"pointer",fontSize:18,textAlign:"center"}}>×</button>
                         </div>
+                        {/* Comment field */}
+                        <input
+                          type="text"
+                          placeholder={T("Commentaire série (optionnel)","Set comment (optional)")}
+                          value={set.comment||""}
+                          onChange={e=>updateSet(ei,si,"comment",e.target.value)}
+                          style={{...inp,fontSize:12,padding:"6px 10px",textAlign:"left",color:C.muted,borderColor:set.comment?C.border:`${C.border}88`}}
+                        />
                       </div>
                     );
                   })}
-                  <div style={{display:"flex",gap:8,marginTop:6}}>
+                  <div style={{display:"flex",gap:8,marginTop:2}}>
                     <button onClick={()=>addSet(ei)} style={{flex:1,padding:"9px",background:"none",border:`1.5px dashed ${C.border}`,borderRadius:8,color:C.muted,cursor:"pointer",fontSize:13,fontFamily:"inherit",fontWeight:600}}>+ {T("Série","Set")}</button>
                     <button onClick={()=>{setStatsEx(ex);setView("stats");}} style={{padding:"9px 14px",background:"none",border:`1.5px solid ${C.border}`,borderRadius:8,color:C.blue,cursor:"pointer",fontSize:12,fontFamily:"inherit",fontWeight:700}}>Stats</button>
                   </div>
                   {(pr>0||vol>0)&&(
                     <div style={{display:"flex",gap:12,marginTop:10,paddingTop:10,borderTop:`1px solid ${C.border}`}}>
                       <div style={{fontSize:12,color:C.muted}}>PR : <strong style={{color:C.text}}>{pr} {unit}</strong></div>
-                      <div style={{fontSize:12,color:C.muted}}>Vol : <strong style={{color:C.text}}>{vol.toLocaleString("fr-FR")} {unit}</strong></div>
+                      <div style={{fontSize:12,color:C.muted}}>Vol : <strong style={{color:C.text}}>{vol.toLocaleString("fr-FR")} {unit}{isDb?" (×2)":""}</strong></div>
                     </div>
                   )}
                 </div>
               </div>
             );
           })}
-          <button onClick={()=>{setAddingEx(true);setFilterCat("Tout");setSearchQ("");}} style={{...btn(C.accent),width:"100%",padding:14,fontSize:15,borderRadius:12,marginTop:4}}>
+
+          {session.exercises.length>0&&(
+            <button onClick={()=>addExToSession} style={{display:"none"}}/>
+          )}
+
+          <button onClick={()=>{setAddingEx(true);setFilterCat("Tout");setSearchQ("");}} style={{...btn(C.accent),width:"100%",padding:14,fontSize:15,borderRadius:12,marginTop:4,marginBottom:10}}>
             + {T("Ajouter un exercice","Add exercise")}
           </button>
+
+          {/* Clôturer */}
+          {session.exercises.length>0&&!session.closed&&(
+            <button onClick={handleCloseSession} style={{width:"100%",padding:14,background:"none",border:`2px solid ${C.green}`,borderRadius:12,color:C.green,fontWeight:800,fontSize:15,cursor:"pointer",fontFamily:"inherit",letterSpacing:0.3}}>
+              {T("Terminer la séance","Close session")}
+            </button>
+          )}
+          {session.closed&&(
+            <div style={{textAlign:"center",padding:"12px",background:C.green+"12",border:`1px solid ${C.green}33`,borderRadius:12,color:C.green,fontWeight:700,fontSize:14}}>
+              {T("Séance terminée","Session closed")} {session.closedAt?`— ${fmtTime(session.closedAt)}`:""}
+            </div>
+          )}
         </div>
       )}
 
-      {/* SPLIT */}
+      {/* ══ SPLIT ══ */}
       {view==="split"&&!editingProgram&&!editingDay&&(
         <div style={{padding:"14px 16px"}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
@@ -525,9 +717,7 @@ export default function IronLogPro() {
                         <div style={{fontWeight:700,fontSize:14,color:prog.color}}>{day.name}</div>
                         <div style={{fontSize:11,color:C.muted,marginTop:2}}>{(day.exercises||[]).map(e=>e.name).join(" · ")}</div>
                       </div>
-                      <button onClick={()=>launchDay(day)} style={{...btn(prog.color),padding:"7px 14px",fontSize:12,borderRadius:8,flexShrink:0,marginLeft:8}}>
-                        {T("Lancer","Start")}
-                      </button>
+                      <button onClick={()=>launchDay(day)} style={{...btn(prog.color),padding:"7px 14px",fontSize:12,borderRadius:8,flexShrink:0,marginLeft:8}}>{T("Lancer","Start")}</button>
                     </div>
                   ))}
                 </div>
@@ -537,7 +727,6 @@ export default function IronLogPro() {
         </div>
       )}
 
-      {/* Split edit program */}
       {view==="split"&&editingProgram&&!editingDay&&(
         <div style={{padding:"14px 16px"}}>
           <button onClick={()=>setEditingProgram(null)} style={{background:"none",border:"none",color:C.blue,fontWeight:700,fontSize:14,cursor:"pointer",marginBottom:14,padding:0,fontFamily:"inherit"}}>← {T("Retour","Back")}</button>
@@ -567,17 +756,12 @@ export default function IronLogPro() {
                   <button onClick={()=>savePrograms(programs.map((p,i)=>i!==editingProgram.idx?p:{...p,days:p.days.filter((_,j)=>j!==di)}))} style={{background:"none",border:"1px solid #fecaca",color:C.red,borderRadius:8,padding:"5px 10px",fontSize:12,cursor:"pointer"}}>×</button>
                 </div>
               </div>
-              {(day.exercises||[]).length>0&&(
-                <div style={{padding:"8px 16px",display:"flex",gap:6,flexWrap:"wrap"}}>
-                  {day.exercises.map((ex,ei)=><span key={ei} style={{fontSize:12,background:C.sub,border:`1px solid ${C.border}`,borderRadius:6,padding:"3px 8px",color:C.muted}}>{ex.name}</span>)}
-                </div>
-              )}
+              {(day.exercises||[]).length>0&&<div style={{padding:"8px 16px",display:"flex",gap:6,flexWrap:"wrap"}}>{day.exercises.map((ex,ei)=><span key={ei} style={{fontSize:12,background:C.sub,border:`1px solid ${C.border}`,borderRadius:6,padding:"3px 8px",color:C.muted}}>{ex.name}</span>)}</div>}
             </div>
           ))}
         </div>
       )}
 
-      {/* Split edit day */}
       {view==="split"&&editingDay&&(
         <div style={{padding:"14px 16px"}}>
           <button onClick={()=>{setEditingDay(null);setAddingDayEx(false);setSearchQ("");setFilterCat("Tout");}} style={{background:"none",border:"none",color:C.blue,fontWeight:700,fontSize:14,cursor:"pointer",marginBottom:14,padding:0,fontFamily:"inherit"}}>← {T("Retour","Back")}</button>
@@ -588,10 +772,7 @@ export default function IronLogPro() {
           <span style={sec}>{T("Exercices prévus","Planned exercises")} ({programs[editingDay.progIdx]?.days?.[editingDay.dayIdx]?.exercises?.length||0})</span>
           {(programs[editingDay.progIdx]?.days?.[editingDay.dayIdx]?.exercises||[]).map((ex,ei)=>(
             <div key={ei} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"9px 12px",background:C.sub,borderRadius:10,marginBottom:6,border:`1px solid ${C.border}`}}>
-              <div>
-                <div style={{fontWeight:600,fontSize:13}}>{ex.name}</div>
-                <div style={{display:"flex",gap:5,marginTop:3}}><span style={tag(TYPE_COLORS[ex.type]||C.blue)}>{TL[ex.type]}</span><span style={tag("#888")}>{ex.category}</span></div>
-              </div>
+              <div><div style={{fontWeight:600,fontSize:13}}>{ex.name}</div><div style={{display:"flex",gap:5,marginTop:3}}><span style={tag(TYPE_COLORS[ex.type]||C.blue)}>{TL[ex.type]}</span><span style={tag("#888")}>{ex.category}</span></div></div>
               <button onClick={()=>savePrograms(programs.map((p,i)=>i!==editingDay.progIdx?p:{...p,days:p.days.map((d,j)=>j!==editingDay.dayIdx?d:{...d,exercises:d.exercises.filter((_,k)=>k!==ei)})}))} style={{background:"none",border:"none",color:isDark?"#444":"#ccc",fontSize:20,cursor:"pointer"}}>×</button>
             </div>
           ))}
@@ -605,15 +786,9 @@ export default function IronLogPro() {
                 {filteredLib.map(ex=>{
                   const already=programs[editingDay.progIdx]?.days?.[editingDay.dayIdx]?.exercises?.some(e=>e.id===ex.id);
                   return (
-                    <div key={ex.id} onClick={()=>{
-                      if(already) return;
-                      savePrograms(programs.map((p,i)=>i!==editingDay.progIdx?p:{...p,days:p.days.map((d,j)=>j!==editingDay.dayIdx?d:{...d,exercises:[...(d.exercises||[]),ex]})}));
-                      showToast(`${ex.name} ${T("ajouté","added")}`);
-                    }} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"9px 10px",background:already?C.sub:C.card,border:`1px solid ${C.border}`,borderRadius:8,marginBottom:5,cursor:already?"default":"pointer",opacity:already?0.5:1}}>
-                      <div>
-                        <div style={{fontWeight:600,fontSize:13}}>{ex.name}</div>
-                        <div style={{display:"flex",gap:5,marginTop:2}}><span style={tag(TYPE_COLORS[ex.type]||C.blue)}>{TL[ex.type]}</span><span style={tag("#888")}>{ex.category}</span></div>
-                      </div>
+                    <div key={ex.id} onClick={()=>{if(already)return;savePrograms(programs.map((p,i)=>i!==editingDay.progIdx?p:{...p,days:p.days.map((d,j)=>j!==editingDay.dayIdx?d:{...d,exercises:[...(d.exercises||[]),ex]})}));showToast(`${ex.name} ${T("ajouté","added")}`);}}
+                      style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"9px 10px",background:already?C.sub:C.card,border:`1px solid ${C.border}`,borderRadius:8,marginBottom:5,cursor:already?"default":"pointer",opacity:already?0.5:1}}>
+                      <div><div style={{fontWeight:600,fontSize:13}}>{ex.name}</div><div style={{display:"flex",gap:5,marginTop:2}}><span style={tag(TYPE_COLORS[ex.type]||C.blue)}>{TL[ex.type]}</span><span style={tag("#888")}>{ex.category}</span></div></div>
                       {already?<span style={{fontSize:11,color:C.green,fontWeight:700}}>{T("Ajouté","Added")}</span>:<span style={{color:C.blue,fontSize:20,fontWeight:700}}>+</span>}
                     </div>
                   );
@@ -625,20 +800,23 @@ export default function IronLogPro() {
         </div>
       )}
 
-      {/* HISTORY */}
+      {/* ══ HISTORY ══ */}
       {view==="history"&&(
         <div style={{padding:"14px 16px"}}>
           {Object.keys(sessions).filter(d=>sessions[d].exercises?.length>0).length===0&&<div style={{textAlign:"center",padding:48,color:C.muted}}>{T("Aucune session enregistrée","No sessions recorded")}</div>}
           {Object.keys(sessions).filter(d=>sessions[d].exercises?.length>0).sort((a,b)=>a>b?-1:1).map(d=>{
-            const ses=sessions[d]; const vol=ses.exercises?.reduce((a,e)=>a+calcVolume(e.sets),0)||0; const moodOpt=MOOD_OPTIONS.find(m=>m.v===ses.mood);
+            const ses=sessions[d]; const vol=ses.exercises?.reduce((a,e)=>a+calcVolume(e.sets,e.name),0)||0; const moodOpt=MOOD_OPTIONS.find(m=>m.v===ses.mood);
             return (
-              <div key={d} style={{...card,cursor:"pointer"}} onClick={()=>{setSelectedDate(d);setView("journal");}}>
+              <div key={d} style={{...card,cursor:"pointer"}} onClick={()=>{setSelectedDate(d);setView("session");}}>
                 <div style={{padding:"13px 16px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-                  <div>
-                    <div style={{fontWeight:700,fontSize:15,textTransform:"capitalize"}}>{fmtDate(d,lang)}</div>
-                    <div style={{fontSize:12,color:C.muted,marginTop:3}}>{ses.exercises?.length} {T("exercice(s)","exercise(s)")} · {vol>0?`${vol.toLocaleString("fr-FR")} ${unit}`:"—"}{moodOpt?` · ${lang==="en"?moodOpt.en:moodOpt.fr}`:""}</div>
-                    <div style={{fontSize:12,color:C.muted,marginTop:2}}>{ses.exercises?.map(e=>e.name).join(" · ")}</div>
-                    {ses.note&&<div style={{fontSize:12,color:C.muted,marginTop:3,fontStyle:"italic"}}>"{ses.note.slice(0,60)}{ses.note.length>60?"…":""}"</div>}
+                  <div style={{flex:1}}>
+                    <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:2}}>
+                      {ses.sessionName&&<span style={{fontWeight:800,fontSize:15,color:ses.closed?C.green:C.text}}>{ses.sessionName}</span>}
+                      {ses.closed&&<span style={tag(C.green)}>{T("OK","OK")}</span>}
+                    </div>
+                    <div style={{fontWeight:ses.sessionName?400:700,fontSize:ses.sessionName?12:15,color:C.muted,textTransform:"capitalize"}}>{fmtDate(d,lang)}{ses.closedAt?` · ${fmtTime(ses.closedAt)}`:""}</div>
+                    <div style={{fontSize:12,color:C.muted,marginTop:2}}>{ses.exercises?.length} {T("exercice(s)","exercise(s)")} · {vol>0?`${vol.toLocaleString("fr-FR")} ${unit}`:"—"}{moodOpt?` · ${lang==="en"?moodOpt.en:moodOpt.fr}`:""}</div>
+                    {ses.note&&<div style={{fontSize:12,color:C.muted,marginTop:2,fontStyle:"italic"}}>"{ses.note.slice(0,50)}{ses.note.length>50?"…":""}"</div>}
                   </div>
                   <div style={{color:C.blue,fontSize:22}}>›</div>
                 </div>
@@ -648,7 +826,7 @@ export default function IronLogPro() {
         </div>
       )}
 
-      {/* STATS */}
+      {/* ══ STATS ══ */}
       {view==="stats"&&(
         <div style={{padding:"14px 16px"}}>
           {!statsEx?(
@@ -670,7 +848,7 @@ export default function IronLogPro() {
         </div>
       )}
 
-      {/* BODY */}
+      {/* ══ BODY ══ */}
       {view==="body"&&(
         <div style={{padding:"14px 16px"}}>
           <div style={{...card,marginBottom:14}}>
@@ -678,22 +856,20 @@ export default function IronLogPro() {
               <div style={{fontWeight:700,fontSize:14,marginBottom:12}}>{T("Ajouter une mesure","Add measurement")}</div>
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:10}}>
                 <div><div style={{fontSize:11,color:C.muted,fontWeight:700,textTransform:"uppercase",letterSpacing:0.5,marginBottom:5}}>{T("Date","Date")}</div><input type="date" value={newBodyDate} onChange={e=>setNewBodyDate(e.target.value)} style={{...inp,fontSize:13,textAlign:"left",padding:"8px 10px"}}/></div>
-                <div><div style={{fontSize:11,color:C.muted,fontWeight:700,textTransform:"uppercase",letterSpacing:0.5,marginBottom:5}}>{T("Poids","Weight")} ({unit})</div><input type="number" step="0.1" placeholder={`75.0`} value={newBodyWeight} onChange={e=>setNewBodyWeight(e.target.value)} style={inp}/></div>
+                <div><div style={{fontSize:11,color:C.muted,fontWeight:700,textTransform:"uppercase",letterSpacing:0.5,marginBottom:5}}>{T("Poids","Weight")} ({unit})</div><input type="number" step="0.1" placeholder="75.0" value={newBodyWeight} onChange={e=>setNewBodyWeight(e.target.value)} style={inp}/></div>
               </div>
               <button onClick={()=>{if(!newBodyWeight)return;const entry={date:newBodyDate,weight:parseFloat(newBodyWeight)};const updated=[...bodyLog.filter(b=>b.date!==newBodyDate),entry].sort((a,b)=>a.date>b.date?1:-1);saveBodyLog(updated);setNewBodyWeight("");showToast(T("Mesure enregistrée","Measurement saved"));}} style={{...btn(C.green),width:"100%",padding:11,fontSize:14,borderRadius:10}}>{T("Enregistrer","Save")}</button>
             </div>
           </div>
-          {bodyLog.length>=2&&(
-            <div style={{...card,padding:"16px"}}>
-              <div style={{fontWeight:700,fontSize:14,marginBottom:12}}>{T("Évolution du poids","Weight evolution")}</div>
-              <Sparkline data={bodyLog.map(b=>({value:b.weight}))} color={C.green} width={320} height={60}/>
-              <div style={{display:"flex",justifyContent:"space-between",marginTop:10}}>
-                <div style={{fontSize:12,color:C.muted}}>{T("Min","Min")} : <strong style={{color:C.text}}>{Math.min(...bodyLog.map(b=>b.weight))} {unit}</strong></div>
-                <div style={{fontSize:12,color:C.muted}}>{T("Max","Max")} : <strong style={{color:C.text}}>{Math.max(...bodyLog.map(b=>b.weight))} {unit}</strong></div>
-                <div style={{fontSize:12,color:C.muted}}>{T("Actuel","Current")} : <strong style={{color:C.green}}>{bodyLog[bodyLog.length-1].weight} {unit}</strong></div>
-              </div>
+          {bodyLog.length>=2&&(<div style={{...card,padding:"16px"}}>
+            <div style={{fontWeight:700,fontSize:14,marginBottom:12}}>{T("Évolution du poids","Weight evolution")}</div>
+            <Sparkline data={bodyLog.map(b=>({value:b.weight}))} color={C.green} width={320} height={60}/>
+            <div style={{display:"flex",justifyContent:"space-between",marginTop:10}}>
+              <div style={{fontSize:12,color:C.muted}}>{T("Min","Min")} : <strong>{Math.min(...bodyLog.map(b=>b.weight))} {unit}</strong></div>
+              <div style={{fontSize:12,color:C.muted}}>{T("Max","Max")} : <strong>{Math.max(...bodyLog.map(b=>b.weight))} {unit}</strong></div>
+              <div style={{fontSize:12,color:C.muted}}>{T("Actuel","Current")} : <strong style={{color:C.green}}>{bodyLog[bodyLog.length-1].weight} {unit}</strong></div>
             </div>
-          )}
+          </div>)}
           <div style={{marginTop:10}}>
             <div style={{fontSize:11,fontWeight:700,color:C.muted,letterSpacing:1,textTransform:"uppercase",marginBottom:8}}>{T("Historique","History")}</div>
             {bodyLog.length===0&&<div style={{textAlign:"center",padding:32,color:C.muted,fontSize:13}}>{T("Aucune mesure","No measurements yet")}</div>}
@@ -708,7 +884,7 @@ export default function IronLogPro() {
         </div>
       )}
 
-      {/* LIBRARY */}
+      {/* ══ LIBRARY ══ */}
       {view==="library"&&(
         <div style={{padding:"14px 16px"}}>
           <input placeholder={T("Rechercher...","Search...")} value={searchQ} onChange={e=>setSearchQ(e.target.value)} style={{...inp,textAlign:"left",marginBottom:12,padding:"11px 14px"}}/>
@@ -723,7 +899,13 @@ export default function IronLogPro() {
           {filteredLib.map(ex=>(
             <div key={ex.id} style={card}>
               <div style={{padding:"11px 14px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-                <div><div style={{fontWeight:600,fontSize:14}}>{ex.name}</div><div style={{display:"flex",gap:6,marginTop:4}}><span style={tag(TYPE_COLORS[ex.type]||C.blue)}>{TL[ex.type]||ex.type}</span><span style={tag("#888")}>{ex.category}</span></div></div>
+                <div>
+                  <div style={{display:"flex",alignItems:"center",gap:6}}>
+                    <div style={{fontWeight:600,fontSize:14}}>{ex.name}</div>
+                    {isHalteres(ex.name)&&<span style={{...tag(C.orange),fontSize:9}}>×2</span>}
+                  </div>
+                  <div style={{display:"flex",gap:6,marginTop:4}}><span style={tag(TYPE_COLORS[ex.type]||C.blue)}>{TL[ex.type]||ex.type}</span><span style={tag("#888")}>{ex.category}</span></div>
+                </div>
                 {editingLib&&ex.id.startsWith("c")&&<button onClick={()=>saveLibrary(library.filter(e=>e.id!==ex.id))} style={{background:"none",border:`1px solid ${C.red}`,color:C.red,borderRadius:6,padding:"4px 10px",fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>{T("Supprimer","Delete")}</button>}
               </div>
             </div>
@@ -731,7 +913,7 @@ export default function IronLogPro() {
         </div>
       )}
 
-      {/* SETTINGS */}
+      {/* ══ SETTINGS ══ */}
       {settingsOpen&&(
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:200,display:"flex",alignItems:"flex-end"}}>
           <div style={{background:C.card,width:"100%",maxWidth:480,margin:"0 auto",borderRadius:"20px 20px 0 0",padding:"22px 20px 32px",maxHeight:"88vh",overflowY:"auto"}}>
@@ -743,17 +925,11 @@ export default function IronLogPro() {
             <input value={settings.username} onChange={e=>saveSettings({...settings,username:e.target.value})} placeholder={T("Ton prénom","Your name")} style={{...inp,textAlign:"left",padding:"10px 14px",marginBottom:4}}/>
             <span style={sec}>{T("Thème","Theme")}</span>
             <div style={{fontSize:12,color:C.muted,marginBottom:8}}>{T("Auto = sombre entre 21h et 7h","Auto = dark from 9pm to 7am")}</div>
-            <div style={{display:"flex",gap:8,marginBottom:4}}>
-              {[{k:"light",fr:"Clair",en:"Light"},{k:"dark",fr:"Sombre",en:"Dark"},{k:"auto",fr:"Auto",en:"Auto"}].map(({k,fr,en})=><button key={k} onClick={()=>saveSettings({...settings,theme:k})} style={{...pill(settings.theme===k),flex:1,padding:"10px 0"}}>{lang==="en"?en:fr}</button>)}
-            </div>
+            <div style={{display:"flex",gap:8,marginBottom:4}}>{[{k:"light",fr:"Clair",en:"Light"},{k:"dark",fr:"Sombre",en:"Dark"},{k:"auto",fr:"Auto",en:"Auto"}].map(({k,fr,en})=><button key={k} onClick={()=>saveSettings({...settings,theme:k})} style={{...pill(settings.theme===k),flex:1,padding:"10px 0"}}>{lang==="en"?en:fr}</button>)}</div>
             <span style={sec}>{T("Langue","Language")}</span>
-            <div style={{display:"flex",gap:8,marginBottom:4}}>
-              {[{k:"fr",l:"Français"},{k:"en",l:"English"}].map(({k,l})=><button key={k} onClick={()=>saveSettings({...settings,lang:k})} style={{...pill(settings.lang===k),flex:1,padding:"10px 0"}}>{l}</button>)}
-            </div>
+            <div style={{display:"flex",gap:8,marginBottom:4}}>{[{k:"fr",l:"Français"},{k:"en",l:"English"}].map(({k,l})=><button key={k} onClick={()=>saveSettings({...settings,lang:k})} style={{...pill(settings.lang===k),flex:1,padding:"10px 0"}}>{l}</button>)}</div>
             <span style={sec}>{T("Unités de poids","Weight unit")}</span>
-            <div style={{display:"flex",gap:8,marginBottom:4}}>
-              {["kg","lbs"].map(u=><button key={u} onClick={()=>saveSettings({...settings,unit:u})} style={{...pill(settings.unit===u),flex:1,padding:"10px 0"}}>{u}</button>)}
-            </div>
+            <div style={{display:"flex",gap:8,marginBottom:4}}>{["kg","lbs"].map(u=><button key={u} onClick={()=>saveSettings({...settings,unit:u})} style={{...pill(settings.unit===u),flex:1,padding:"10px 0"}}>{u}</button>)}</div>
             <span style={sec}>{T("Onglets — ordre & visibilité","Tabs — order & visibility")}</span>
             {(settings.tabOrder||ALL_TABS).map((tabId,idx)=>{
               const hidden=(settings.hiddenTabs||[]).includes(tabId);
@@ -772,7 +948,7 @@ export default function IronLogPro() {
               );
             })}
             <span style={sec}>{T("Statistiques globales","Global stats")}</span>
-            {(()=>{const g=gs();return(<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:4}}>{[{l:T("Sessions","Sessions"),v:g.sessions},{l:T("Volume total","Total volume"),v:g.volume>0?`${(g.volume/1000).toFixed(1)}t`:"—"},{l:T("Séries totales","Total sets"),v:g.sets},{l:T("Exercices","Exercises"),v:g.exercises}].map(s=>(<div key={s.l} style={{background:C.sub,border:`1px solid ${C.border}`,borderRadius:12,padding:"12px 14px"}}><div style={{fontSize:20,fontWeight:800,color:C.blue}}>{s.v}</div><div style={{fontSize:10,color:C.muted,fontWeight:600,textTransform:"uppercase",letterSpacing:0.5,marginTop:2}}>{s.l}</div></div>))}</div>);})()}
+            {(()=>{const g=gs();return(<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:4}}>{[{l:T("Sessions","Sessions"),v:g.sessions},{l:T("Volume total","Total volume"),v:g.volume>0?`${(g.volume/1000).toFixed(1)}t`:"—"},{l:T("Streak","Streak"),v:`${g.streak}j`},{l:T("Exercices","Exercises"),v:g.exercises}].map(s=>(<div key={s.l} style={{background:C.sub,border:`1px solid ${C.border}`,borderRadius:12,padding:"12px 14px"}}><div style={{fontSize:20,fontWeight:800,color:C.blue}}>{s.v}</div><div style={{fontSize:10,color:C.muted,fontWeight:600,textTransform:"uppercase",letterSpacing:0.5,marginTop:2}}>{s.l}</div></div>))}</div>);})()}
             <span style={sec}>{T("Données","Data")}</span>
             <button onClick={exportData} style={{...btn(C.blue),width:"100%",padding:13,fontSize:14,borderRadius:12,marginBottom:10}}>{T("Exporter mes données (JSON)","Export my data (JSON)")}</button>
             {!resetConfirm?(
@@ -808,7 +984,10 @@ export default function IronLogPro() {
                 <div key={ex.id} onClick={()=>!already&&addExToSession(ex)} style={{...card,cursor:already?"default":"pointer",opacity:already?0.5:1,marginBottom:7}}>
                   <div style={{padding:"11px 14px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
                     <div>
-                      <div style={{fontWeight:600,fontSize:14}}>{ex.name}</div>
+                      <div style={{display:"flex",alignItems:"center",gap:6}}>
+                        <div style={{fontWeight:600,fontSize:14}}>{ex.name}</div>
+                        {isHalteres(ex.name)&&<span style={{...tag(C.orange),fontSize:9}}>×2</span>}
+                      </div>
                       <div style={{display:"flex",gap:6,marginTop:3}}><span style={tag(TYPE_COLORS[ex.type]||C.blue)}>{TL[ex.type]}</span><span style={tag("#888")}>{ex.category}</span></div>
                       {lastPerf&&<div style={{fontSize:11,color:C.muted,marginTop:3}}>{T("Dernière fois","Last time")} : {lastPerf.sets.filter(s=>s.reps||s.weight).map(s=>`${s.reps||"?"}×${s.weight||"?"}${unit}`).join(", ")}</div>}
                     </div>
@@ -831,13 +1010,41 @@ export default function IronLogPro() {
           {Object.keys(sessions).filter(d=>sessions[d].exercises?.length>0&&d!==selectedDate).sort((a,b)=>a>b?-1:1).map(d=>(
             <div key={d} onClick={()=>duplicateSession(d)} style={{...card,cursor:"pointer",marginBottom:7}}>
               <div style={{padding:"12px 16px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-                <div><div style={{fontWeight:700,fontSize:14,textTransform:"capitalize"}}>{fmtDate(d,lang)}</div><div style={{fontSize:12,color:C.muted,marginTop:2}}>{sessions[d].exercises.map(e=>e.name).join(" · ")}</div></div>
+                <div>
+                  <div style={{fontWeight:700,fontSize:14}}>{sessions[d].sessionName||fmtDate(d,lang)}</div>
+                  <div style={{fontSize:12,color:C.muted,marginTop:2,textTransform:"capitalize"}}>{sessions[d].sessionName?fmtDate(d,lang):""}</div>
+                  <div style={{fontSize:12,color:C.muted,marginTop:1}}>{sessions[d].exercises.map(e=>e.name).join(" · ")}</div>
+                </div>
                 <div style={{color:C.blue,fontSize:20,fontWeight:700}}>+</div>
               </div>
             </div>
           ))}
           {Object.keys(sessions).filter(d=>sessions[d].exercises?.length>0&&d!==selectedDate).length===0&&<div style={{textAlign:"center",padding:32,color:C.muted,fontSize:13}}>{T("Aucune autre session disponible","No other sessions available")}</div>}
         </div></div>
+      )}
+
+      {/* MODAL close session (name input) */}
+      {closeModal&&(
+        <div style={modal}>
+          <div style={{...mbox,maxHeight:"auto"}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+              <div style={{fontWeight:800,fontSize:17}}>{T("Terminer la séance","Close session")}</div>
+              <button onClick={()=>setCloseModal(false)} style={{background:"none",border:"none",color:C.muted,fontSize:24,cursor:"pointer"}}>×</button>
+            </div>
+            <div style={{fontSize:13,color:C.muted,marginBottom:14}}>{T("Comment appelles-tu cette séance ?","What do you call this session?")}</div>
+            <input
+              value={closeName}
+              onChange={e=>setCloseName(e.target.value)}
+              placeholder={T("Ex: Push, Full Body, Dos & Biceps...","Ex: Push, Full Body, Back & Biceps...")}
+              style={{...inp,textAlign:"left",padding:"12px 14px",marginBottom:16}}
+              onKeyDown={e=>e.key==="Enter"&&closeName.trim()&&finalizeSession(closeName.trim())}
+              autoFocus
+            />
+            <button onClick={()=>closeName.trim()&&finalizeSession(closeName.trim())} style={{...btn(C.green),width:"100%",padding:13,fontSize:15,borderRadius:12,opacity:closeName.trim()?1:0.4}}>
+              {T("Terminer","Close")}
+            </button>
+          </div>
+        </div>
       )}
 
       {/* MODAL create exercise */}
@@ -913,7 +1120,7 @@ function ExStats({ ex, pts, onBack, C, pill, tag, unit, lang, T, TL, fmtShort })
           <div style={{fontWeight:700,fontSize:14}}>{T("Progression","Progress")}</div>
           <div style={{display:"flex",gap:6}}>{[{k:"pr",l:"PR"},{k:"vol",l:T("Volume","Volume")}].map(({k,l})=><button key={k} onClick={()=>setMetric(k)} style={pill(metric===k)}>{l}</button>)}</div>
         </div>
-        {pts.length>=2?<Sparkline data={pts.map(p=>({value:metric==="pr"?p.pr:p.vol}))} color={metric==="pr"?C.blue:C.green}/>:<div style={{color:C.muted,fontSize:13}}>{T("Pas assez de données (min. 2 sessions)","Not enough data (min. 2 sessions)")}</div>}
+        {pts.length>=2?<Sparkline data={pts.map(p=>({value:metric==="pr"?p.pr:p.vol}))} color={metric==="pr"?C.blue:C.green}/>:<div style={{color:C.muted,fontSize:13}}>{T("Pas assez de données","Not enough data")}</div>}
         <div style={{marginTop:14}}>{[...pts].reverse().slice(0,5).map(p=>(<div key={p.date} style={{display:"flex",justifyContent:"space-between",padding:"7px 0",borderBottom:`1px solid ${C.border}`,fontSize:13}}><span style={{color:C.muted,textTransform:"capitalize"}}>{fmtShort(p.date,lang)}</span><span style={{fontWeight:700}}>PR {p.pr} {unit} · {p.vol.toLocaleString("fr-FR")} {unit}</span></div>))}</div>
       </div>
       <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:14,padding:"16px"}}>
