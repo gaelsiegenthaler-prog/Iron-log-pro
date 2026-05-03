@@ -247,7 +247,16 @@ export default function IronLogPro() {
       if(s) setSessions(JSON.parse(s.value));
       if(l) setLibrary(JSON.parse(l.value));
       if(p) setPrograms(JSON.parse(p.value));
-      if(cfg) setSettings(prev=>({...prev,...JSON.parse(cfg.value)}));
+      if(cfg) {
+        const saved = JSON.parse(cfg.value);
+        // Reset tabOrder if it contains unknown tabs (migration guard)
+        if (saved.tabOrder) {
+          const valid = saved.tabOrder.filter(t => ALL_TABS.includes(t));
+          const missing = ALL_TABS.filter(t => !saved.tabOrder.includes(t));
+          saved.tabOrder = [...missing, ...valid];
+        }
+        setSettings(prev=>({...prev,...saved}));
+      }
       if(b) setBodyLog(JSON.parse(b.value));
     } catch{}
   },[]);
