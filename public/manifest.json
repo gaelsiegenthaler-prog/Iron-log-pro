@@ -1,0 +1,25 @@
+{
+  "short_name": "Iron Log",
+  "name": "Iron Log Pro",
+  "description": "Ton carnet de musculation personnel",
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "type": "image/png",
+      "sizes": "192x192",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icon-512.png",
+      "type": "image/png",
+      "sizes": "512x512",
+      "purpose": "any maskable"
+    }
+  ],
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "theme_color": "#ffffff",
+  "background_color": "#f5f5f0"
+}
