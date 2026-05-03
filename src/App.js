@@ -380,7 +380,7 @@ export default function IronLogPro() {
     (async()=>{
       try {
         const keys=["ilp-sessions","ilp-library","ilp-programs","ilp-settings","ilp-body","ilp-templates"];
-        const [s,l,p,cfg,b,tpl]=await Promise.all(keys.map(k=>window.storage.get(k).catch(()=>null)));
+        const [s,l,p,cfg,b,tpl]=keys.map(k=>{const v=localStorage.getItem(k);return v?{value:v}:null;});
         if(s) setSessions(JSON.parse(s.value));
         if(l) setLibrary(JSON.parse(l.value));
         if(p) setPrograms(JSON.parse(p.value));
@@ -391,7 +391,7 @@ export default function IronLogPro() {
     })();
   },[]);
 
-  const persist = (k,d) => window.storage.set(k,JSON.stringify(d)).catch(()=>{});
+  const persist = (k,d) => localStorage.setItem(k, JSON.stringify(d));
   const saveSessions = d => { setSessions(d); persist("ilp-sessions",d); };
   const saveLibrary  = d => { setLibrary(d);  persist("ilp-library",d); };
   const savePrograms = d => { setPrograms(d); persist("ilp-programs",d); };
@@ -1044,7 +1044,7 @@ export default function IronLogPro() {
                 <div style={{display:"flex",gap:8}}>
                   <button onClick={()=>setResetConfirm(false)} style={{flex:1,padding:"10px",background:"none",border:`1px solid ${C.border}`,borderRadius:8,color:C.muted,cursor:"pointer",fontFamily:"inherit",fontWeight:600}}>{T("Annuler","Cancel")}</button>
                   <button onClick={async()=>{
-                    await Promise.all(["ilp-sessions","ilp-library","ilp-programs","ilp-body"].map(k=>window.storage.delete(k).catch(()=>{})));
+                    ["ilp-sessions","ilp-library","ilp-programs","ilp-body","ilp-templates","ilp-settings"].forEach(k=>localStorage.removeItem(k));
                     setSessions({});setLibrary(DEFAULT_LIBRARY);setPrograms([]);setBodyLog([]);
                     setResetConfirm(false);setSettingsOpen(false);showToast(T("App réinitialisée","App reset"));
                   }} style={{flex:1,padding:"10px",background:C.red,border:"none",borderRadius:8,color:"#fff",cursor:"pointer",fontFamily:"inherit",fontWeight:700}}>{T("Réinitialiser","Reset")}</button>
