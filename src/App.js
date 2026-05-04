@@ -490,11 +490,15 @@ export default function IronLogPro() {
                   const s=sessions[d];
                   const done=s?.closed;
                   const isToday=d===today();
+                  const isPast=d<today();
                   const dayName=new Date(d+"T00:00:00").toLocaleDateString(lang==="en"?"en-US":"fr-FR",{weekday:"short"}).slice(0,2).toUpperCase();
+                  const bgColor = done ? C.green : isToday ? C.blue+"22" : "transparent";
+                  const borderColor = done ? C.green : isToday ? C.blue : isPast ? C.border : C.border+"66";
+                  const labelColor = done ? C.green : isToday ? C.blue : C.muted;
                   return (
                     <div key={d} onClick={()=>{setSelectedDate(d);setView("session");}} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:4,cursor:"pointer"}}>
-                      <div style={{fontSize:9,fontWeight:700,color:isToday?C.blue:C.muted}}>{dayName}</div>
-                      <div style={{width:32,height:32,borderRadius:"50%",background:done?C.green:isToday?C.blue+"22":"transparent",border:`2px solid ${done?C.green:isToday?C.blue:C.border}`,display:"flex",alignItems:"center",justifyContent:"center"}}>
+                      <div style={{fontSize:9,fontWeight:700,color:labelColor}}>{dayName}</div>
+                      <div style={{width:32,height:32,borderRadius:"50%",background:bgColor,border:`2px solid ${borderColor}`,display:"flex",alignItems:"center",justifyContent:"center",opacity:!done&&isPast&&!isToday?0.4:1}}>
                         {done&&<div style={{width:12,height:12,borderRadius:"50%",background:"#fff"}}/>}
                         {!done&&isToday&&<div style={{width:8,height:8,borderRadius:"50%",background:C.blue}}/>}
                       </div>
@@ -522,12 +526,9 @@ export default function IronLogPro() {
               <div>
                 <div style={{fontSize:11,fontWeight:700,color:C.muted,textTransform:"uppercase",letterSpacing:0.5,marginBottom:8}}>{T("Lancer une séance","Start a session")}</div>
                 {activeProgram.days.map((day,di)=>(
-                  <div key={di} style={{display:"flex",alignItems:"center",justifyContent:"space-between",background:activeProgram.color+"10",border:`1px solid ${activeProgram.color}33`,borderRadius:12,padding:"12px 16px",marginBottom:8}}>
-                    <div>
-                      <div style={{fontWeight:700,fontSize:15,color:activeProgram.color}}>{day.name}</div>
-                      <div style={{fontSize:11,color:C.muted,marginTop:2}}>{(day.exercises||[]).map(e=>e.name).join(" · ")}</div>
-                    </div>
-                    <button onClick={()=>launchDay(day)} style={{...btn(activeProgram.color),padding:"8px 16px",fontSize:13,borderRadius:8,flexShrink:0,marginLeft:8}}>
+                  <div key={di} style={{display:"flex",alignItems:"center",justifyContent:"space-between",background:activeProgram.color+"10",border:`1px solid ${activeProgram.color}33`,borderRadius:12,padding:"14px 16px",marginBottom:8}}>
+                    <div style={{fontWeight:700,fontSize:16,color:activeProgram.color}}>{day.name}</div>
+                    <button onClick={()=>launchDay(day)} style={{...btn(activeProgram.color),padding:"8px 18px",fontSize:13,borderRadius:8,flexShrink:0,marginLeft:8}}>
                       {T("Lancer","Start")}
                     </button>
                   </div>
