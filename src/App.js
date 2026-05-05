@@ -609,18 +609,40 @@ export default function IronLogPro() {
             const pr=calcPR(ex.sets);
             const vol=calcVolume(ex.sets,ex.name);
             const isDb=isHalteres(ex.name);
+            const [collapsed, setCollapsed] = [
+              (session._collapsed||{})[ei]||false,
+              (val) => updateSession({_collapsed:{...(session._collapsed||{}),[ei]:val}})
+            ];
+            const moveEx = (dir) => {
+              const exs=[...session.exercises];
+              const swap=ei+dir;
+              if(swap<0||swap>=exs.length) return;
+              [exs[ei],exs[swap]]=[exs[swap],exs[ei]];
+              updateSession({exercises:exs});
+            };
             return (
               <div key={ei} style={card}>
-                <div style={{padding:"12px 16px",borderBottom:`1px solid ${C.border}`,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-                  <div>
-                    <div style={{display:"flex",alignItems:"center",gap:8}}>
-                      <div style={{fontWeight:700,fontSize:15}}>{ex.name}</div>
-                      {isDb&&<span style={{...tag(C.orange),fontSize:9}}>×2</span>}
+                <div style={{padding:"12px 16px",borderBottom:collapsed?`none`:`1px solid ${C.border}`,display:"flex",alignItems:"center",gap:8}}>
+                  {/* Number + reorder */}
+                  <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:2,flexShrink:0}}>
+                    <button onClick={()=>moveEx(-1)} disabled={ei===0} style={{background:"none",border:"none",color:ei===0?C.border:C.muted,cursor:ei===0?"default":"pointer",fontSize:12,padding:0,lineHeight:1}}>▲</button>
+                    <div style={{width:22,height:22,borderRadius:"50%",background:C.blue+"18",display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:800,color:C.blue}}>{ei+1}</div>
+                    <button onClick={()=>moveEx(1)} disabled={ei===session.exercises.length-1} style={{background:"none",border:"none",color:ei===session.exercises.length-1?C.border:C.muted,cursor:ei===session.exercises.length-1?"default":"pointer",fontSize:12,padding:0,lineHeight:1}}>▼</button>
+                  </div>
+                  {/* Name + tags */}
+                  <div style={{flex:1,minWidth:0}} onClick={()=>setCollapsed(!collapsed)}>
+                    <div style={{display:"flex",alignItems:"center",gap:6}}>
+                      <div style={{fontWeight:700,fontSize:15,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{ex.name}</div>
+                      {isDb&&<span style={{...tag(C.orange),fontSize:9,flexShrink:0}}>×2</span>}
                     </div>
                     <div style={{display:"flex",gap:5,marginTop:4}}><span style={tag(TYPE_COLORS[ex.type]||C.blue)}>{TL[ex.type]||ex.type}</span><span style={tag("#888")}>{ex.category}</span></div>
                   </div>
-                  <button onClick={()=>removeEx(ei)} style={{background:"none",border:"none",color:C.muted,fontSize:20,cursor:"pointer"}}>×</button>
+                  {/* Collapse toggle */}
+                  <button onClick={()=>setCollapsed(!collapsed)} style={{background:"none",border:"none",color:C.muted,fontSize:16,cursor:"pointer",padding:"0 4px",transform:collapsed?"rotate(-90deg)":"rotate(0deg)",transition:"transform 0.2s"}}>▾</button>
+                  {/* Remove */}
+                  <button onClick={()=>removeEx(ei)} style={{background:"none",border:"none",color:C.muted,fontSize:20,cursor:"pointer",padding:"0 2px"}}>×</button>
                 </div>
+                {!collapsed&&(
                 <div style={{padding:"12px 16px"}}>
                   <div style={{display:"grid",gridTemplateColumns:"28px 1fr 1fr 32px",gap:6,marginBottom:4,fontSize:10,color:C.muted,fontWeight:700,letterSpacing:1,textTransform:"uppercase"}}>
                     <div>#</div><div style={{textAlign:"center"}}>{T("Reps","Reps")}</div><div style={{textAlign:"center"}}>{isDb?T("Poids/haltère","Weight/db"):T("Poids","Weight")} ({unit})</div><div/>
@@ -641,14 +663,7 @@ export default function IronLogPro() {
                           <input type="number" placeholder={set.targetWeight||"—"} value={set.weight} onChange={e=>updateSet(ei,si,"weight",e.target.value)} style={inp}/>
                           <button onClick={()=>removeSet(ei,si)} style={{background:"none",border:"none",color:isDark?"#444":"#ccc",cursor:"pointer",fontSize:18,textAlign:"center"}}>×</button>
                         </div>
-                        {/* Comment field */}
-                        <input
-                          type="text"
-                          placeholder={T("Commentaire série (optionnel)","Set comment (optional)")}
-                          value={set.comment||""}
-                          onChange={e=>updateSet(ei,si,"comment",e.target.value)}
-                          style={{...inp,fontSize:12,padding:"6px 10px",textAlign:"left",color:C.muted,borderColor:set.comment?C.border:`${C.border}88`}}
-                        />
+                        <input type="text" placeholder={T("Commentaire série (optionnel)","Set comment (optional)")} value={set.comment||""} onChange={e=>updateSet(ei,si,"comment",e.target.value)} style={{...inp,fontSize:12,padding:"6px 10px",textAlign:"left",color:C.muted,borderColor:set.comment?C.border:`${C.border}88`}}/>
                       </div>
                     );
                   })}
@@ -663,6 +678,7 @@ export default function IronLogPro() {
                     </div>
                   )}
                 </div>
+                )}
               </div>
             );
           })}
@@ -780,12 +796,30 @@ export default function IronLogPro() {
             onBlur={e=>{if(!e.target.value.trim()) return; savePrograms(programs.map((p,i)=>i!==editingDay.progIdx?p:{...p,days:p.days.map((d,j)=>j!==editingDay.dayIdx?d:{...d,name:e.target.value.trim()})}));}}
             style={{...inp,textAlign:"left",padding:"10px 14px",marginBottom:14}}/>
           <span style={sec}>{T("Exercices prévus","Planned exercises")} ({programs[editingDay.progIdx]?.days?.[editingDay.dayIdx]?.exercises?.length||0})</span>
-          {(programs[editingDay.progIdx]?.days?.[editingDay.dayIdx]?.exercises||[]).map((ex,ei)=>(
-            <div key={ei} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"9px 12px",background:C.sub,borderRadius:10,marginBottom:6,border:`1px solid ${C.border}`}}>
-              <div><div style={{fontWeight:600,fontSize:13}}>{ex.name}</div><div style={{display:"flex",gap:5,marginTop:3}}><span style={tag(TYPE_COLORS[ex.type]||C.blue)}>{TL[ex.type]}</span><span style={tag("#888")}>{ex.category}</span></div></div>
+          {(programs[editingDay.progIdx]?.days?.[editingDay.dayIdx]?.exercises||[]).map((ex,ei)=>{
+            const exList = programs[editingDay.progIdx]?.days?.[editingDay.dayIdx]?.exercises||[];
+            const moveDayEx = (dir) => {
+              const arr=[...exList]; const swap=ei+dir;
+              if(swap<0||swap>=arr.length) return;
+              [arr[ei],arr[swap]]=[arr[swap],arr[ei]];
+              savePrograms(programs.map((p,i)=>i!==editingDay.progIdx?p:{...p,days:p.days.map((d,j)=>j!==editingDay.dayIdx?d:{...d,exercises:arr})}));
+            };
+            return (
+            <div key={ei} style={{display:"flex",alignItems:"center",gap:8,padding:"9px 12px",background:C.sub,borderRadius:10,marginBottom:6,border:`1px solid ${C.border}`}}>
+              {/* Number + reorder */}
+              <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:1,flexShrink:0}}>
+                <button onClick={()=>moveDayEx(-1)} disabled={ei===0} style={{background:"none",border:"none",color:ei===0?C.border:C.muted,cursor:ei===0?"default":"pointer",fontSize:11,padding:0,lineHeight:1}}>▲</button>
+                <div style={{width:20,height:20,borderRadius:"50%",background:C.blue+"18",display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:800,color:C.blue}}>{ei+1}</div>
+                <button onClick={()=>moveDayEx(1)} disabled={ei===exList.length-1} style={{background:"none",border:"none",color:ei===exList.length-1?C.border:C.muted,cursor:ei===exList.length-1?"default":"pointer",fontSize:11,padding:0,lineHeight:1}}>▼</button>
+              </div>
+              <div style={{flex:1}}>
+                <div style={{fontWeight:600,fontSize:13}}>{ex.name}</div>
+                <div style={{display:"flex",gap:5,marginTop:3}}><span style={tag(TYPE_COLORS[ex.type]||C.blue)}>{TL[ex.type]}</span><span style={tag("#888")}>{ex.category}</span></div>
+              </div>
               <button onClick={()=>savePrograms(programs.map((p,i)=>i!==editingDay.progIdx?p:{...p,days:p.days.map((d,j)=>j!==editingDay.dayIdx?d:{...d,exercises:d.exercises.filter((_,k)=>k!==ei)})}))} style={{background:"none",border:"none",color:isDark?"#444":"#ccc",fontSize:20,cursor:"pointer"}}>×</button>
             </div>
-          ))}
+            );
+          })}
           {!addingDayEx?(
             <button onClick={()=>{setAddingDayEx(true);setSearchQ("");setFilterCat("Tout");}} style={{width:"100%",padding:"11px",background:"none",border:`1.5px dashed ${C.border}`,borderRadius:10,color:C.blue,cursor:"pointer",fontSize:13,fontFamily:"inherit",fontWeight:700,marginTop:6}}>+ {T("Ajouter un exercice","Add exercise")}</button>
           ):(
