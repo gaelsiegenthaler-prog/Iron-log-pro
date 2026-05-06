@@ -226,7 +226,8 @@ export default function IronLogPro() {
   const [duplicateModal, setDuplicateModal] = useState(false);
   const [closeModal, setCloseModal] = useState(false);
   const [closeName, setCloseName] = useState("");
-  const [sessionView, setSessionView] = useState("calendar"); // calendar | detail
+  const [sessionView, setSessionView] = useState("calendar");
+  const [planModal, setPlanModal] = useState(false);
   // Library UI
   const [creatingEx, setCreatingEx] = useState(false);
   const [newEx, setNewEx] = useState({name:"",category:"Pectoraux",type:"weight"});
@@ -348,7 +349,14 @@ export default function IronLogPro() {
   };
 
   const finalizeSession = (name) => {
-    updateSession({ closed:true, sessionName:name, closedAt:new Date().toISOString() });
+    const startedAt = session.startedAt;
+    let duration = "";
+    if (startedAt) {
+      const mins = Math.round((new Date() - new Date(startedAt)) / 60000);
+      if (mins >= 60) duration = `${Math.floor(mins/60)}h${String(mins%60).padStart(2,"0")}`;
+      else duration = `${mins} min`;
+    }
+    updateSession({ closed:true, sessionName:name, closedAt:new Date().toISOString(), duration });
     setCloseModal(false);
     showToast(`${T("Séance","Session")} "${name}" ${T("terminée !","closed!")}`);
   };
@@ -464,46 +472,43 @@ export default function IronLogPro() {
       {/* ══ HOME ══ */}
       {view==="home"&&(()=>{
         const g=gs();
-
-        // Sessions cette semaine
-        const wdays=weekDays();
-        const sessionsThisWeek = wdays.filter(d=>sessions[d]?.closed).length;
-
-        // Semaine passée et à venir
         const getWeek = (offset) => {
           const days=[]; const now=new Date(); const dow=now.getDay();
           const monday=new Date(now); monday.setDate(now.getDate()-(dow===0?6:dow-1)+(offset*7));
           for(let i=0;i<7;i++){const d=new Date(monday);d.setDate(monday.getDate()+i);days.push(d.toISOString().split("T")[0]);}
           return days;
         };
-        const prevWeek = getWeek(-1);
-        const nextWeek = getWeek(1);
-
+        const wdays=weekDays();
+        const prevWeek=getWeek(-1);
+        const nextWeek=getWeek(1);
+        const sessionsThisWeek=wdays.filter(d=>sessions[d]?.closed).length;
         const lastClosed=Object.entries(sessions).filter(([,s])=>s.closed).sort(([a],[b])=>a>b?-1:1)[0];
 
-        const WeekRow = ({days, label, muted=false}) => (
-          <div style={{marginBottom:muted?6:0}}>
-            {label&&<div style={{fontSize:9,fontWeight:700,color:C.muted,textTransform:"uppercase",letterSpacing:0.5,marginBottom:4,paddingLeft:2}}>{label}</div>}
+        const WeekRow = ({days, label}) => (
+          <div style={{marginBottom:0}}>
+            {label&&<div style={{fontSize:9,fontWeight:700,color:C.muted,textTransform:"uppercase",letterSpacing:0.5,marginBottom:6,paddingLeft:2}}>{label}</div>}
             <div style={{display:"flex",gap:4}}>
               {days.map(d=>{
                 const s=sessions[d];
                 const done=s?.closed;
+                const planned=s?.planned;
                 const isToday=d===today();
                 const isPast=d<today();
                 const dayName=new Date(d+"T00:00:00").toLocaleDateString(lang==="en"?"en-US":"fr-FR",{weekday:"short"}).slice(0,2).toUpperCase();
-                const size = muted ? 24 : 32;
-                const bgColor = done ? C.green : isToday ? C.blue+"22" : "transparent";
-                const borderColor = done ? C.green : isToday ? C.blue : isPast ? C.border : C.border+"55";
-                const labelColor = done ? C.green : isToday ? C.blue : C.muted;
+                const bgColor = done ? C.green : planned ? C.orange+"33" : isToday ? C.blue+"22" : "transparent";
+                const borderColor = done ? C.green : planned ? C.orange : isToday ? C.blue : isPast ? C.border : C.border+"55";
+                const labelColor = done ? C.green : planned ? C.orange : isToday ? C.blue : C.muted;
                 return (
                   <div key={d} onClick={()=>{setSelectedDate(d);setView("session");}}
-                    style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:3,cursor:"pointer",opacity:muted?0.5:1}}>
-                    <div style={{fontSize:muted?8:9,fontWeight:700,color:labelColor}}>{dayName}</div>
-                    <div style={{width:size,height:size,borderRadius:"50%",background:bgColor,border:`2px solid ${borderColor}`,display:"flex",alignItems:"center",justifyContent:"center",opacity:!done&&isPast&&!isToday?0.4:1}}>
-                      {done&&<div style={{width:muted?8:12,height:muted?8:12,borderRadius:"50%",background:"#fff"}}/>}
-                      {!done&&isToday&&<div style={{width:muted?5:8,height:muted?5:8,borderRadius:"50%",background:C.blue}}/>}
+                    style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:3,cursor:"pointer"}}>
+                    <div style={{fontSize:9,fontWeight:700,color:labelColor}}>{dayName}</div>
+                    <div style={{width:32,height:32,borderRadius:"50%",background:bgColor,border:`2px solid ${borderColor}`,display:"flex",alignItems:"center",justifyContent:"center",opacity:!done&&!planned&&isPast&&!isToday?0.35:1}}>
+                      {done&&<div style={{width:12,height:12,borderRadius:"50%",background:"#fff"}}/>}
+                      {!done&&planned&&<div style={{width:10,height:10,borderRadius:"50%",background:C.orange+"88"}}/>}
+                      {!done&&!planned&&isToday&&<div style={{width:8,height:8,borderRadius:"50%",background:C.blue}}/>}
                     </div>
-                    {!muted&&done&&s.sessionName&&<div style={{fontSize:7,color:C.green,fontWeight:700,textAlign:"center",maxWidth:34,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{s.sessionName}</div>}
+                    {done&&s.sessionName&&<div style={{fontSize:7,color:C.green,fontWeight:700,textAlign:"center",maxWidth:34,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{s.sessionName}</div>}
+                    {!done&&planned&&s.plannedName&&<div style={{fontSize:7,color:C.orange,fontWeight:700,textAlign:"center",maxWidth:34,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{s.plannedName}</div>}
                   </div>
                 );
               })}
@@ -513,27 +518,27 @@ export default function IronLogPro() {
 
         return (
           <div style={{padding:"14px 16px"}}>
-            {/* KPI row */}
+            {/* KPI row — all black */}
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginBottom:16}}>
               {[
-                {l:T("Cette semaine","This week"),v:sessionsThisWeek,c:C.blue},
-                {l:T("Total sessions","Total sessions"),v:g.sessions,c:C.orange},
-                {l:"Volume",v:g.volume>0?`${(g.volume/1000).toFixed(1)}t`:"—",c:C.green},
+                {l:T("Cette semaine","This week"),v:sessionsThisWeek},
+                {l:T("Total sessions","Total sessions"),v:g.sessions},
+                {l:"Volume",v:g.volume>0?`${(g.volume/1000).toFixed(1)}t`:"—"},
               ].map(s=>(
                 <div key={s.l} style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:12,padding:"12px 8px",textAlign:"center"}}>
-                  <div style={{fontSize:20,fontWeight:800,color:s.c}}>{s.v}</div>
+                  <div style={{fontSize:20,fontWeight:800,color:C.text}}>{s.v}</div>
                   <div style={{fontSize:10,color:C.muted,fontWeight:600,letterSpacing:0.5,textTransform:"uppercase",marginTop:2}}>{s.l}</div>
                 </div>
               ))}
             </div>
 
-            {/* 3 semaines */}
+            {/* 3 semaines même taille */}
             <div style={{...card,padding:"14px 16px",marginBottom:14}}>
-              <WeekRow days={prevWeek} label={T("Semaine passée","Last week")} muted={true}/>
-              <div style={{borderTop:`1px solid ${C.border}`,margin:"8px 0"}}/>
-              <WeekRow days={wdays} label={T("Cette semaine","This week")} muted={false}/>
-              <div style={{borderTop:`1px solid ${C.border}`,margin:"8px 0"}}/>
-              <WeekRow days={nextWeek} label={T("Semaine à venir","Next week")} muted={true}/>
+              <WeekRow days={prevWeek} label={T("Semaine passée","Last week")}/>
+              <div style={{borderTop:`1px solid ${C.border}`,margin:"10px 0"}}/>
+              <WeekRow days={wdays} label={T("Cette semaine","This week")}/>
+              <div style={{borderTop:`1px solid ${C.border}`,margin:"10px 0"}}/>
+              <WeekRow days={nextWeek} label={T("Semaine à venir","Next week")}/>
             </div>
 
             {/* Dernière séance */}
@@ -541,28 +546,28 @@ export default function IronLogPro() {
               <div style={{...card,marginBottom:14}}>
                 <div style={{padding:"12px 16px"}}>
                   <div style={{fontSize:11,fontWeight:700,color:C.muted,textTransform:"uppercase",letterSpacing:0.5,marginBottom:6}}>{T("Dernière séance","Last session")}</div>
-                  <div style={{fontWeight:800,fontSize:16}}>{lastClosed[1].sessionName||T("Séance","Session")}</div>
-                  <div style={{fontSize:12,color:C.muted,marginTop:2,textTransform:"capitalize"}}>{fmtDate(lastClosed[0],lang)}</div>
+                  <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:2}}>
+                    <div style={{fontWeight:800,fontSize:16}}>{lastClosed[1].sessionName||T("Séance","Session")}</div>
+                    {lastClosed[1].duration&&<span style={{fontSize:12,color:C.muted}}>· {lastClosed[1].duration}</span>}
+                  </div>
+                  <div style={{fontSize:12,color:C.muted,textTransform:"capitalize"}}>{fmtDate(lastClosed[0],lang)}</div>
                   <div style={{fontSize:12,color:C.muted,marginTop:2}}>{lastClosed[1].exercises?.length} {T("exercice(s)","exercise(s)")} · {lastClosed[1].exercises?.reduce((a,e)=>a+calcVolume(e.sets,e.name),0).toLocaleString("fr-FR")} {unit}</div>
                 </div>
               </div>
             )}
 
-            {/* Programme actif — lancer un jour */}
+            {/* Programme actif */}
             {activeProgram&&(activeProgram.days||[]).length>0&&(
               <div>
                 <div style={{fontSize:11,fontWeight:700,color:C.muted,textTransform:"uppercase",letterSpacing:0.5,marginBottom:8}}>{T("Lancer une séance","Start a session")}</div>
                 {activeProgram.days.map((day,di)=>(
                   <div key={di} style={{display:"flex",alignItems:"center",justifyContent:"space-between",background:activeProgram.color+"10",border:`1px solid ${activeProgram.color}33`,borderRadius:12,padding:"14px 16px",marginBottom:8}}>
                     <div style={{fontWeight:700,fontSize:16,color:activeProgram.color}}>{day.name}</div>
-                    <button onClick={()=>launchDay(day)} style={{...btn(activeProgram.color),padding:"8px 18px",fontSize:13,borderRadius:8,flexShrink:0,marginLeft:8}}>
-                      {T("Lancer","Start")}
-                    </button>
+                    <button onClick={()=>launchDay(day)} style={{...btn(activeProgram.color),padding:"8px 18px",fontSize:13,borderRadius:8,flexShrink:0,marginLeft:8}}>{T("Lancer","Start")}</button>
                   </div>
                 ))}
               </div>
             )}
-
             {!activeProgram&&(
               <div style={{textAlign:"center",padding:"24px 20px",border:`1.5px dashed ${C.border}`,borderRadius:14,color:C.muted}}>
                 <div style={{fontSize:13,marginBottom:8}}>{T("Aucun programme actif","No active program")}</div>
@@ -652,6 +657,7 @@ export default function IronLogPro() {
                   <div>
                     <div style={{fontSize:12,color:C.muted,marginBottom:10}}>
                       {session.exercises.length} {T("exercice(s)","exercise(s)")} · {session.exercises.reduce((a,e)=>a+e.sets.length,0)} {T("séries","sets")} · {session.exercises.reduce((a,e)=>a+calcVolume(e.sets,e.name),0).toLocaleString("fr-FR")} {unit}
+                      {session.duration&&<span style={{color:C.muted}}> · {session.duration}</span>}
                     </div>
                     <button onClick={()=>setView("session-detail")} style={{...btn(C.blue),width:"100%",padding:11,fontSize:14,borderRadius:10}}>
                       {sessionDone?T("Voir / Modifier","View / Edit"):T("Continuer la séance","Continue session")}
@@ -660,18 +666,40 @@ export default function IronLogPro() {
                 ):(
                   <div>
                     <div style={{fontSize:13,color:C.muted,marginBottom:12}}>{T("Aucune séance ce jour","No session this day")}</div>
+                    {/* Planned indicator */}
+                    {session.planned&&(
+                      <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10,padding:"8px 12px",background:C.orange+"12",border:`1px solid ${C.orange}33`,borderRadius:8}}>
+                        <div style={{width:8,height:8,borderRadius:"50%",background:C.orange,flexShrink:0}}/>
+                        <span style={{fontSize:13,color:C.orange,fontWeight:600}}>{session.plannedName||T("Séance prévue","Planned session")}</span>
+                        <button onClick={()=>{
+                          const day=activeProgram?.days?.find(d=>d.name===session.plannedName);
+                          if(day) launchDay(day);
+                          else {updateSession({exercises:[],note:"",mood:0,energy:0,sessionName:session.plannedName});setView("session-detail");}
+                        }} style={{...btn(C.orange),padding:"5px 12px",fontSize:12,borderRadius:6,marginLeft:"auto"}}>{T("Lancer","Start")}</button>
+                      </div>
+                    )}
                     {activeProgram&&(activeProgram.days||[]).length>0&&(
                       <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:10}}>
                         {activeProgram.days.map((day,di)=>(
-                          <button key={di} onClick={()=>launchDay(day)} style={{...btn(activeProgram.color),padding:"8px 14px",fontSize:13,borderRadius:8}}>
-                            {day.name}
-                          </button>
+                          <button key={di} onClick={()=>launchDay(day)} style={{...btn(activeProgram.color),padding:"8px 14px",fontSize:13,borderRadius:8}}>{day.name}</button>
                         ))}
                       </div>
                     )}
-                    <button onClick={()=>{updateSession({exercises:[],note:"",mood:0,energy:0});setView("session-detail");}} style={{width:"100%",padding:11,background:"none",border:`1.5px dashed ${C.border}`,borderRadius:10,color:C.muted,cursor:"pointer",fontSize:13,fontFamily:"inherit",fontWeight:700}}>
-                      + {T("Séance libre","Free session")}
-                    </button>
+                    <div style={{display:"flex",gap:8}}>
+                      <button onClick={()=>{updateSession({exercises:[],note:"",mood:0,energy:0});setView("session-detail");}} style={{flex:1,padding:11,background:"none",border:`1.5px dashed ${C.border}`,borderRadius:10,color:C.muted,cursor:"pointer",fontSize:13,fontFamily:"inherit",fontWeight:700}}>
+                        + {T("Séance libre","Free session")}
+                      </button>
+                      {!session.planned&&(
+                        <button onClick={()=>setPlanModal(true)} style={{padding:"11px 14px",background:"none",border:`1.5px solid ${C.orange}44`,borderRadius:10,color:C.orange,cursor:"pointer",fontSize:12,fontFamily:"inherit",fontWeight:700}}>
+                          {T("À programmer","Plan")}
+                        </button>
+                      )}
+                      {session.planned&&(
+                        <button onClick={()=>updateSession({planned:false,plannedName:""})} style={{padding:"11px 14px",background:"none",border:`1.5px solid ${C.border}`,borderRadius:10,color:C.muted,cursor:"pointer",fontSize:11,fontFamily:"inherit"}}>
+                          {T("Annuler","Cancel")}
+                        </button>
+                      )}
+                    </div>
                   </div>
                 )}
               </div>
@@ -680,12 +708,38 @@ export default function IronLogPro() {
         );
       })()}
 
-      {/* ══ SESSION DETAIL ══ */}
       {view==="session-detail"&&(
         <div style={{padding:"14px 16px"}}>
           <button onClick={()=>setView("session")} style={{background:"none",border:"none",color:C.blue,fontWeight:700,fontSize:14,cursor:"pointer",marginBottom:14,padding:0,fontFamily:"inherit"}}>← {T("Retour","Back")}</button>
 
-          {/* Stats bar */}
+          {/* Session header with name + start button */}
+          <div style={{...card,padding:"12px 16px",marginBottom:14}}>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+              <div>
+                <div style={{fontWeight:800,fontSize:17}}>{session.sessionName||fmtDate(selectedDate,lang)}</div>
+                <div style={{fontSize:12,color:C.muted,marginTop:2,textTransform:"capitalize"}}>{fmtDate(selectedDate,lang)}</div>
+                {session.startedAt&&session.closedAt&&session.duration&&(
+                  <div style={{fontSize:12,color:C.green,fontWeight:700,marginTop:4}}>
+                    {fmtTime(session.startedAt)} → {fmtTime(session.closedAt)} · {session.duration}
+                  </div>
+                )}
+                {session.startedAt&&!session.closedAt&&(
+                  <div style={{fontSize:12,color:C.orange,fontWeight:700,marginTop:4}}>
+                    {T("Démarrée à","Started at")} {fmtTime(session.startedAt)}
+                  </div>
+                )}
+              </div>
+              <div style={{display:"flex",flexDirection:"column",gap:6,alignItems:"flex-end"}}>
+                {session.closed&&<span style={tag(C.green)}>{T("CLÔTURÉE","CLOSED")}</span>}
+                {!session.startedAt&&!session.closed&&(
+                  <button onClick={()=>updateSession({startedAt:new Date().toISOString()})}
+                    style={{...btn(C.blue),padding:"8px 14px",fontSize:13,borderRadius:8}}>
+                    {T("Démarrer","Start")}
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
           <div style={{display:"flex",gap:8,marginBottom:14}}>
             {[
               {l:T("Exercices","Exercises"),v:session.exercises.length},
@@ -826,7 +880,9 @@ export default function IronLogPro() {
           )}
           {session.closed&&(
             <div style={{textAlign:"center",padding:"12px",background:C.green+"12",border:`1px solid ${C.green}33`,borderRadius:12,color:C.green,fontWeight:700,fontSize:14}}>
-              {T("Séance terminée","Session closed")} {session.closedAt?`— ${fmtTime(session.closedAt)}`:""}
+              {T("Séance terminée","Session closed")}
+              {session.duration&&` · ${session.duration}`}
+              {session.closedAt&&` — ${fmtTime(session.closedAt)}`}
             </div>
           )}
         </div>
@@ -1247,6 +1303,32 @@ export default function IronLogPro() {
           <span style={sec}>{T("Couleur","Color")}</span>
           <div style={{display:"flex",gap:10,flexWrap:"wrap",marginBottom:22}}>{PROGRAM_COLORS.map(c=><button key={c} onClick={()=>setNewProg({...newProg,color:c})} style={{width:38,height:38,borderRadius:"50%",background:c,border:newProg.color===c?`3px solid ${C.text}`:"3px solid transparent",cursor:"pointer",outline:"none"}}/>)}</div>
           <button onClick={()=>{if(!newProg.name.trim())return;const prog={id:"p"+Date.now(),name:newProg.name.trim(),color:newProg.color,active:programs.length===0,days:[]};savePrograms([...programs,prog]);setCreatingProgram(false);setNewProg({name:"",color:"#2563eb"});showToast(T("Programme créé !","Program created!"));}} style={{...btn(newProg.color),width:"100%",padding:13,fontSize:15,borderRadius:12}}>{T("Créer le programme","Create program")}</button>
+        </div></div>
+      )}
+
+      {/* MODAL plan session */}
+      {planModal&&(
+        <div style={modal}><div style={{...mbox,maxHeight:"auto"}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+            <div style={{fontWeight:800,fontSize:17}}>{T("À programmer","Plan session")}</div>
+            <button onClick={()=>setPlanModal(false)} style={{background:"none",border:"none",color:C.muted,fontSize:24,cursor:"pointer"}}>×</button>
+          </div>
+          <div style={{fontSize:13,color:C.muted,marginBottom:14,textTransform:"capitalize"}}>{fmtDate(selectedDate,lang)}</div>
+          {activeProgram&&(activeProgram.days||[]).length>0&&(
+            <div style={{marginBottom:14}}>
+              <div style={{fontSize:11,fontWeight:700,color:C.muted,textTransform:"uppercase",letterSpacing:0.5,marginBottom:8}}>{T("Choisir une séance","Choose a session")}</div>
+              {activeProgram.days.map((day,di)=>(
+                <button key={di} onClick={()=>{updateSession({planned:true,plannedName:day.name});setPlanModal(false);showToast(`${day.name} ${T("programmé !","planned!")}`);}}
+                  style={{display:"block",width:"100%",padding:"12px 16px",background:activeProgram.color+"10",border:`1px solid ${activeProgram.color}33`,borderRadius:10,color:activeProgram.color,fontWeight:700,fontSize:15,cursor:"pointer",fontFamily:"inherit",textAlign:"left",marginBottom:8}}>
+                  {day.name}
+                </button>
+              ))}
+            </div>
+          )}
+          <button onClick={()=>{updateSession({planned:true,plannedName:T("Séance","Session")});setPlanModal(false);showToast(T("Séance programmée !","Session planned!"));}}
+            style={{width:"100%",padding:12,background:"none",border:`1.5px dashed ${C.border}`,borderRadius:10,color:C.muted,cursor:"pointer",fontSize:13,fontFamily:"inherit",fontWeight:600}}>
+            {T("Séance libre programmée","Free session planned")}
+          </button>
         </div></div>
       )}
 
