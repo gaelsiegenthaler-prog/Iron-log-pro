@@ -454,7 +454,7 @@ export default function IronLogPro() {
           <div>
             <div style={{fontSize:10,fontWeight:700,letterSpacing:3,color:C.blue,textTransform:"uppercase"}}>IRON LOG PRO</div>
             <div style={{fontSize:20,fontWeight:800,lineHeight:1.1}}>
-              {view==="home"?(settings.username?`${T("Bonjour","Hey")}, ${settings.username}`:T("Accueil","Home")):(TAB_META[view]?.[lang]||"?")}
+              {view==="home"?(settings.username?`${T("Bonjour","Hey")}, ${settings.username}`:T("Accueil","Home")):view==="session-detail"?T("Session","Session"):(TAB_META[view]?.[lang]||"?")}
             </div>
           </div>
           <div style={{display:"flex",gap:8,alignItems:"center"}}>
@@ -715,9 +715,14 @@ export default function IronLogPro() {
           {/* Session header with name + start button */}
           <div style={{...card,padding:"12px 16px",marginBottom:14}}>
             <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-              <div>
-                <div style={{fontWeight:800,fontSize:17}}>{session.sessionName||fmtDate(selectedDate,lang)}</div>
-                <div style={{fontSize:12,color:C.muted,marginTop:2,textTransform:"capitalize"}}>{fmtDate(selectedDate,lang)}</div>
+              <div style={{flex:1,minWidth:0}}>
+                <input
+                  value={session.sessionName||""}
+                  onChange={e=>updateSession({sessionName:e.target.value})}
+                  placeholder={T("Nom de la séance","Session name")}
+                  style={{...inp,textAlign:"left",padding:"4px 0",fontSize:17,fontWeight:800,background:"transparent",border:"none",borderBottom:`1.5px solid ${C.border}`,borderRadius:0,width:"100%",outline:"none"}}
+                />
+                <div style={{fontSize:12,color:C.muted,marginTop:4,textTransform:"capitalize"}}>{fmtDate(selectedDate,lang)}</div>
                 {session.startedAt&&session.closedAt&&session.duration&&(
                   <div style={{fontSize:12,color:C.green,fontWeight:700,marginTop:4}}>
                     {fmtTime(session.startedAt)} → {fmtTime(session.closedAt)} · {session.duration}
@@ -729,7 +734,7 @@ export default function IronLogPro() {
                   </div>
                 )}
               </div>
-              <div style={{display:"flex",flexDirection:"column",gap:6,alignItems:"flex-end"}}>
+              <div style={{display:"flex",flexDirection:"column",gap:6,alignItems:"flex-end",marginLeft:12,flexShrink:0}}>
                 {session.closed&&<span style={tag(C.green)}>{T("CLÔTURÉE","CLOSED")}</span>}
                 {!session.startedAt&&!session.closed&&(
                   <button onClick={()=>updateSession({startedAt:new Date().toISOString()})}
