@@ -417,6 +417,125 @@ export default function IronLogPro() {
     showToast(T("Données exportées !","Data exported!"));
   };
 
+  const [pdfModal, setPdfModal] = useState(false);
+
+  const generateSessionPDF = (dateKey, ses) => {
+    const name = ses.sessionName || T("Séance","Session");
+    const date = fmtDate(dateKey, lang);
+    const moodOpt = MOOD_OPTIONS.find(m=>m.v===ses.mood);
+    const energyOpt = ENERGY_OPTIONS.find(e=>e.v===ses.energy);
+
+    const rows = ses.exercises?.map((ex,ei) => {
+      const setsHTML = ex.sets.map((s,si) => `
+        <tr style="border-bottom:1px solid #eee">
+          <td style="padding:5px 8px;color:#888;font-size:12px">${si+1}</td>
+          <td style="padding:5px 8px;font-size:13px;text-align:center">${s.reps||"—"}</td>
+          <td style="padding:5px 8px;font-size:13px;text-align:center">${s.weight||"—"} ${unit}</td>
+          <td style="padding:5px 8px;font-size:12px;color:#888;font-style:italic">${s.comment||""}</td>
+        </tr>
+      `).join("");
+      const vol = calcVolume(ex.sets, ex.name);
+      const pr = calcPR(ex.sets);
+      return `
+        <div style="margin-bottom:18px;break-inside:avoid">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
+            <span style="background:#2563eb;color:#fff;border-radius:50%;width:22px;height:22px;display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;flex-shrink:0">${ei+1}</span>
+            <strong style="font-size:14px">${ex.name}</strong>
+            ${isHalteres(ex.name)?'<span style="font-size:10px;background:#ea580c22;color:#ea580c;padding:1px 6px;border-radius:4px;font-weight:700">×2</span>':""}
+            <span style="font-size:10px;background:#2563eb22;color:#2563eb;padding:1px 6px;border-radius:4px;font-weight:700;text-transform:uppercase">${ex.category}</span>
+          </div>
+          <table style="width:100%;border-collapse:collapse;background:#f9f9f7;border-radius:8px;overflow:hidden">
+            <thead><tr style="background:#f0f0ee">
+              <th style="padding:5px 8px;font-size:10px;color:#888;text-align:left;font-weight:700">#</th>
+              <th style="padding:5px 8px;font-size:10px;color:#888;font-weight:700">REPS</th>
+              <th style="padding:5px 8px;font-size:10px;color:#888;font-weight:700">POIDS</th>
+              <th style="padding:5px 8px;font-size:10px;color:#888;text-align:left;font-weight:700">COMMENTAIRE</th>
+            </tr></thead>
+            <tbody>${setsHTML}</tbody>
+          </table>
+          ${pr>0||vol>0?`<div style="font-size:11px;color:#888;margin-top:4px">PR : <strong>${pr} ${unit}</strong> · Vol : <strong>${vol.toLocaleString("fr-FR")} ${unit}${isHalteres(ex.name)?" (×2)":""}</strong></div>`:""}
+        </div>
+      `;
+    }).join("") || "";
+
+    const html = `<!DOCTYPE html>
+<html lang="${lang}">
+<head>
+<meta charset="utf-8"/>
+<title>Iron Log Pro — ${name}</title>
+<style>
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { font-family: -apple-system, 'Helvetica Neue', Arial, sans-serif; color:#1a1a1a; background:#fff; padding:32px; max-width:700px; margin:0 auto; }
+  @media print { body { padding:20px; } }
+</style>
+</head>
+<body>
+  <!-- Header -->
+  <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:24px;padding-bottom:16px;border-bottom:2px solid #2563eb">
+    <div>
+      <div style="font-size:10px;font-weight:700;letter-spacing:3px;color:#2563eb;text-transform:uppercase;margin-bottom:4px">IRON LOG PRO</div>
+      <h1 style="font-size:24px;font-weight:800;margin-bottom:4px">${name}</h1>
+      <div style="font-size:13px;color:#888;text-transform:capitalize">${date}</div>
+    </div>
+    <div style="text-align:right">
+      ${ses.duration?`<div style="font-size:18px;font-weight:800;color:#2563eb">${ses.duration}</div><div style="font-size:10px;color:#888;text-transform:uppercase;font-weight:700">Durée</div>`:""}
+    </div>
+  </div>
+
+  <!-- Stats -->
+  <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:24px">
+    <div style="background:#f5f5f0;border-radius:10px;padding:12px;text-align:center">
+      <div style="font-size:20px;font-weight:800">${ses.exercises?.length||0}</div>
+      <div style="font-size:10px;color:#888;font-weight:700;text-transform:uppercase;margin-top:2px">${T("Exercices","Exercises")}</div>
+    </div>
+    <div style="background:#f5f5f0;border-radius:10px;padding:12px;text-align:center">
+      <div style="font-size:20px;font-weight:800">${ses.exercises?.reduce((a,e)=>a+e.sets.length,0)||0}</div>
+      <div style="font-size:10px;color:#888;font-weight:700;text-transform:uppercase;margin-top:2px">${T("Séries","Sets")}</div>
+    </div>
+    <div style="background:#f5f5f0;border-radius:10px;padding:12px;text-align:center">
+      <div style="font-size:20px;font-weight:800">${(ses.exercises?.reduce((a,e)=>a+calcVolume(e.sets,e.name),0)||0).toLocaleString("fr-FR")} ${unit}</div>
+      <div style="font-size:10px;color:#888;font-weight:700;text-transform:uppercase;margin-top:2px">Volume</div>
+    </div>
+  </div>
+
+  <!-- Note + mood + energy -->
+  ${(ses.note||ses.mood||ses.energy)?`
+  <div style="background:#f5f5f0;border-radius:10px;padding:14px;margin-bottom:24px">
+    ${ses.note?`<div style="font-size:13px;color:#444;margin-bottom:${ses.mood||ses.energy?8:0}px;font-style:italic">"${ses.note}"</div>`:""}
+    <div style="display:flex;gap:16px">
+      ${moodOpt?`<div><span style="font-size:10px;color:#888;font-weight:700;text-transform:uppercase">${T("Humeur","Mood")} </span><span style="font-size:12px;font-weight:700">${lang==="en"?moodOpt.en:moodOpt.fr}</span></div>`:""}
+      ${energyOpt&&ses.energy?`<div><span style="font-size:10px;color:#888;font-weight:700;text-transform:uppercase">${T("Énergie","Energy")} </span><span style="font-size:12px;font-weight:700">${energyOpt.label}</span></div>`:""}
+    </div>
+  </div>`:""}
+
+  <!-- Exercises -->
+  <h2 style="font-size:13px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:1px;margin-bottom:14px">${T("Exercices","Exercises")}</h2>
+  ${rows}
+
+  <!-- Footer -->
+  <div style="margin-top:32px;padding-top:12px;border-top:1px solid #eee;font-size:10px;color:#aaa;text-align:center">
+    Iron Log Pro · ${date}${ses.closedAt?` · ${fmtTime(ses.closedAt)}`:""}
+  </div>
+</body>
+</html>`;
+
+    const blob = new Blob([html], {type:"text/html"});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `iron-log-${name.replace(/\s+/g,"-")}-${dateKey}.html`;
+    a.click();
+    URL.revokeObjectURL(url);
+    showToast(T("Séance exportée !","Session exported!"));
+  };
+
+  const exportAllPDF = () => {
+    const closed = Object.entries(sessions).filter(([,s])=>s.closed&&s.exercises?.length>0).sort(([a],[b])=>a>b?-1:1);
+    if(!closed.length){ showToast(T("Aucune séance clôturée","No closed sessions")); return; }
+    closed.forEach(([date,ses]) => generateSessionPDF(date,ses));
+    showToast(T(`${closed.length} séances exportées !`,`${closed.length} sessions exported!`));
+  };
+
   const moveTab = (idx,dir) => {
     const arr=[...(settings.tabOrder||ALL_TABS)]; const swap=idx+dir;
     if(swap<0||swap>=arr.length) return; [arr[idx],arr[swap]]=[arr[swap],arr[idx]]; saveSettings({...settings,tabOrder:arr});
@@ -541,21 +660,6 @@ export default function IronLogPro() {
               <WeekRow days={nextWeek} label={T("Semaine à venir","Next week")}/>
             </div>
 
-            {/* Dernière séance */}
-            {lastClosed&&(
-              <div style={{...card,marginBottom:14}}>
-                <div style={{padding:"12px 16px"}}>
-                  <div style={{fontSize:11,fontWeight:700,color:C.muted,textTransform:"uppercase",letterSpacing:0.5,marginBottom:6}}>{T("Dernière séance","Last session")}</div>
-                  <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:2}}>
-                    <div style={{fontWeight:800,fontSize:16}}>{lastClosed[1].sessionName||T("Séance","Session")}</div>
-                    {lastClosed[1].duration&&<span style={{fontSize:12,color:C.muted}}>· {lastClosed[1].duration}</span>}
-                  </div>
-                  <div style={{fontSize:12,color:C.muted,textTransform:"capitalize"}}>{fmtDate(lastClosed[0],lang)}</div>
-                  <div style={{fontSize:12,color:C.muted,marginTop:2}}>{lastClosed[1].exercises?.length} {T("exercice(s)","exercise(s)")} · {lastClosed[1].exercises?.reduce((a,e)=>a+calcVolume(e.sets,e.name),0).toLocaleString("fr-FR")} {unit}</div>
-                </div>
-              </div>
-            )}
-
             {/* Programme actif */}
             {activeProgram&&(activeProgram.days||[]).length>0&&(
               <div>
@@ -618,6 +722,7 @@ export default function IronLogPro() {
                   const d=`${year}-${String(month+1).padStart(2,"0")}-${String(dayNum).padStart(2,"0")}`;
                   const s=sessions[d];
                   const done=s?.closed;
+                  const planned=s?.planned&&!s?.closed&&!s?.exercises?.length;
                   const isSelected=d===selectedDate;
                   const isToday=d===today();
                   const hasSes=s?.exercises?.length>0;
@@ -633,7 +738,7 @@ export default function IronLogPro() {
                         <span style={{fontSize:12,fontWeight:isSelected||isToday?700:400,color:isSelected?"#fff":isToday?C.blue:C.text}}>{dayNum}</span>
                       </div>
                       {/* Dot indicator */}
-                      <div style={{width:5,height:5,borderRadius:"50%",background:done?C.green:hasSes?C.orange:"transparent",marginTop:1}}/>
+                      <div style={{width:5,height:5,borderRadius:"50%",background:done?C.green:planned?C.orange:hasSes?C.orange+"88":"transparent",marginTop:1}}/>
                     </div>
                   );
                 })}
@@ -1183,6 +1288,20 @@ export default function IronLogPro() {
             {(()=>{const g=gs();return(<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:4}}>{[{l:T("Sessions","Sessions"),v:g.sessions},{l:T("Volume total","Total volume"),v:g.volume>0?`${(g.volume/1000).toFixed(1)}t`:"—"},{l:T("Streak","Streak"),v:`${g.streak}j`},{l:T("Exercices","Exercises"),v:g.exercises}].map(s=>(<div key={s.l} style={{background:C.sub,border:`1px solid ${C.border}`,borderRadius:12,padding:"12px 14px"}}><div style={{fontSize:20,fontWeight:800,color:C.blue}}>{s.v}</div><div style={{fontSize:10,color:C.muted,fontWeight:600,textTransform:"uppercase",letterSpacing:0.5,marginTop:2}}>{s.l}</div></div>))}</div>);})()}
             <span style={sec}>{T("Données","Data")}</span>
             <button onClick={exportData} style={{...btn(C.blue),width:"100%",padding:13,fontSize:14,borderRadius:12,marginBottom:10}}>{T("Exporter mes données (JSON)","Export my data (JSON)")}</button>
+
+            {/* PDF Export */}
+            <div style={{background:C.sub,border:`1px solid ${C.border}`,borderRadius:12,padding:"14px 16px",marginBottom:10}}>
+              <div style={{fontWeight:700,fontSize:14,marginBottom:4}}>{T("Exporter en PDF","Export as PDF")}</div>
+              <div style={{fontSize:12,color:C.muted,marginBottom:12}}>{T("Fichier HTML imprimable, une séance par page","Printable HTML file, one session per page")}</div>
+              <div style={{display:"flex",gap:8}}>
+                <button onClick={()=>{setSettingsOpen(false);setPdfModal(true);}} style={{flex:1,padding:"10px",background:"none",border:`1.5px solid ${C.blue}`,borderRadius:8,color:C.blue,cursor:"pointer",fontFamily:"inherit",fontWeight:700,fontSize:13}}>
+                  {T("Choisir une séance","Choose session")}
+                </button>
+                <button onClick={()=>{exportAllPDF();setSettingsOpen(false);}} style={{flex:1,...btn(C.blue),padding:"10px",fontSize:13,borderRadius:8}}>
+                  {T("Toutes les séances","All sessions")}
+                </button>
+              </div>
+            </div>
             {!resetConfirm?(
               <button onClick={()=>setResetConfirm(true)} style={{width:"100%",padding:13,background:"none",border:`1.5px solid ${C.red}`,borderRadius:12,color:C.red,fontWeight:700,fontSize:14,cursor:"pointer",fontFamily:"inherit"}}>{T("Réinitialiser l'app","Reset app")}</button>
             ):(
@@ -1308,6 +1427,32 @@ export default function IronLogPro() {
           <span style={sec}>{T("Couleur","Color")}</span>
           <div style={{display:"flex",gap:10,flexWrap:"wrap",marginBottom:22}}>{PROGRAM_COLORS.map(c=><button key={c} onClick={()=>setNewProg({...newProg,color:c})} style={{width:38,height:38,borderRadius:"50%",background:c,border:newProg.color===c?`3px solid ${C.text}`:"3px solid transparent",cursor:"pointer",outline:"none"}}/>)}</div>
           <button onClick={()=>{if(!newProg.name.trim())return;const prog={id:"p"+Date.now(),name:newProg.name.trim(),color:newProg.color,active:programs.length===0,days:[]};savePrograms([...programs,prog]);setCreatingProgram(false);setNewProg({name:"",color:"#2563eb"});showToast(T("Programme créé !","Program created!"));}} style={{...btn(newProg.color),width:"100%",padding:13,fontSize:15,borderRadius:12}}>{T("Créer le programme","Create program")}</button>
+        </div></div>
+      )}
+
+      {/* MODAL PDF export */}
+      {pdfModal&&(
+        <div style={modal}><div style={mbox}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
+            <div style={{fontWeight:800,fontSize:17}}>{T("Exporter une séance","Export a session")}</div>
+            <button onClick={()=>setPdfModal(false)} style={{background:"none",border:"none",color:C.muted,fontSize:24,cursor:"pointer"}}>×</button>
+          </div>
+          <div style={{fontSize:13,color:C.muted,marginBottom:12}}>{T("Sélectionne la séance à exporter","Select the session to export")}</div>
+          {Object.entries(sessions).filter(([,s])=>s.closed&&s.exercises?.length>0).sort(([a],[b])=>a>b?-1:1).map(([date,ses])=>(
+            <div key={date} onClick={()=>{generateSessionPDF(date,ses);setPdfModal(false);}} style={{...card,cursor:"pointer",marginBottom:7}}>
+              <div style={{padding:"12px 16px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+                <div>
+                  <div style={{fontWeight:700,fontSize:15}}>{ses.sessionName||T("Séance","Session")}</div>
+                  <div style={{fontSize:12,color:C.muted,marginTop:2,textTransform:"capitalize"}}>{fmtDate(date,lang)}{ses.duration?` · ${ses.duration}`:""}</div>
+                  <div style={{fontSize:12,color:C.muted,marginTop:1}}>{ses.exercises?.length} {T("exercice(s)","exercise(s)")} · {ses.exercises?.reduce((a,e)=>a+calcVolume(e.sets,e.name),0).toLocaleString("fr-FR")} {unit}</div>
+                </div>
+                <div style={{color:C.blue,fontSize:20}}>↓</div>
+              </div>
+            </div>
+          ))}
+          {Object.entries(sessions).filter(([,s])=>s.closed&&s.exercises?.length>0).length===0&&(
+            <div style={{textAlign:"center",padding:32,color:C.muted,fontSize:13}}>{T("Aucune séance clôturée à exporter","No closed sessions to export")}</div>
+          )}
         </div></div>
       )}
 
