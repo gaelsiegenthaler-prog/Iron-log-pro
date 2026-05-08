@@ -773,14 +773,38 @@ export default function IronLogPro() {
                     <div style={{fontSize:13,color:C.muted,marginBottom:12}}>{T("Aucune séance ce jour","No session this day")}</div>
                     {/* Planned indicator */}
                     {session.planned&&(
-                      <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10,padding:"8px 12px",background:C.orange+"12",border:`1px solid ${C.orange}33`,borderRadius:8}}>
-                        <div style={{width:8,height:8,borderRadius:"50%",background:C.orange,flexShrink:0}}/>
-                        <span style={{fontSize:13,color:C.orange,fontWeight:600}}>{session.plannedName||T("Séance prévue","Planned session")}</span>
-                        <button onClick={()=>{
-                          const day=activeProgram?.days?.find(d=>d.name===session.plannedName);
-                          if(day) launchDay(day);
-                          else {updateSession({exercises:[],note:"",mood:0,energy:0,sessionName:session.plannedName});setView("session-detail");}
-                        }} style={{...btn(C.orange),padding:"5px 12px",fontSize:12,borderRadius:6,marginLeft:"auto"}}>{T("Lancer","Start")}</button>
+                      <div style={{marginBottom:10}}>
+                        <div style={{display:"flex",alignItems:"center",gap:8,padding:"10px 14px",background:C.orange+"12",border:`1px solid ${C.orange}33`,borderRadius:10,marginBottom:8}}>
+                          <div style={{width:8,height:8,borderRadius:"50%",background:C.orange,flexShrink:0}}/>
+                          <span style={{fontSize:14,color:C.orange,fontWeight:700,flex:1}}>{session.plannedName||T("Séance prévue","Planned session")}</span>
+                        </div>
+                        <div style={{display:"flex",gap:8}}>
+                          {/* Voir / Modifier — charge les exercices sans démarrer */}
+                          <button onClick={()=>{
+                            const day=activeProgram?.days?.find(d=>d.name===session.plannedName);
+                            if(day&&(!session.exercises||session.exercises.length===0)){
+                              const newExs=day.exercises.map(ex=>{
+                                const lastPerf=getLastPerf(ex.id);
+                                const sets=lastPerf
+                                  ? lastPerf.sets.map(s=>({reps:"",weight:"",targetReps:s.reps,targetWeight:s.weight,comment:""}))
+                                  : [{reps:"",weight:"",targetReps:"",targetWeight:"",comment:""}];
+                                return {...ex,sets};
+                              });
+                              updateSession({exercises:newExs,sessionName:session.plannedName});
+                            }
+                            setView("session-detail");
+                          }} style={{flex:1,...btn(C.blue),padding:"10px",fontSize:13,borderRadius:8}}>
+                            {T("Voir / Modifier","View / Edit")}
+                          </button>
+                          {/* Lancer — démarre officiellement */}
+                          <button onClick={()=>{
+                            const day=activeProgram?.days?.find(d=>d.name===session.plannedName);
+                            if(day) launchDay(day);
+                            else {updateSession({exercises:[],note:"",mood:0,energy:0,sessionName:session.plannedName,startedAt:new Date().toISOString()});setView("session-detail");}
+                          }} style={{...btn(C.orange),padding:"10px 16px",fontSize:13,borderRadius:8}}>
+                            {T("Lancer","Start")}
+                          </button>
+                        </div>
                       </div>
                     )}
                     {activeProgram&&(activeProgram.days||[]).length>0&&(
