@@ -370,7 +370,7 @@ export default function IronLogPro() {
         : [{reps:"",weight:"",targetReps:"",targetWeight:"",comment:""}];
       return {...ex,sets};
     });
-    updateSession({exercises:[...session.exercises,...newExs], sessionName:day.name, startedAt:new Date().toISOString()});
+    updateSession({exercises:[...session.exercises,...newExs], sessionName:day.name, startedAt:new Date().toISOString(), draft:false});
     setView("session-detail");
     showToast(`${day.name} ${T("lancé !","started!")}`);
   };
@@ -764,8 +764,8 @@ export default function IronLogPro() {
                       {session.exercises.length} {T("exercice(s)","exercise(s)")} · {session.exercises.reduce((a,e)=>a+e.sets.length,0)} {T("séries","sets")} · {session.exercises.reduce((a,e)=>a+calcVolume(e.sets,e.name),0).toLocaleString("fr-FR")} {unit}
                       {session.duration&&<span style={{color:C.muted}}> · {session.duration}</span>}
                     </div>
-                    <button onClick={()=>setView("session-detail")} style={{...btn(C.blue),width:"100%",padding:11,fontSize:14,borderRadius:10}}>
-                      {sessionDone?T("Voir / Modifier","View / Edit"):T("Continuer la séance","Continue session")}
+                    <button onClick={()=>setView("session-detail")} style={{...btn(session.draft?C.blue:sessionDone?C.green:C.blue),width:"100%",padding:11,fontSize:14,borderRadius:10}}>
+                      {session.draft?T("Voir / Modifier","View / Edit"):sessionDone?T("Voir / Modifier","View / Edit"):T("Continuer la séance","Continue session")}
                     </button>
                   </div>
                 ):(
@@ -790,7 +790,7 @@ export default function IronLogPro() {
                                   : [{reps:"",weight:"",targetReps:"",targetWeight:"",comment:""}];
                                 return {...ex,sets};
                               });
-                              updateSession({exercises:newExs,sessionName:session.plannedName});
+                              updateSession({exercises:newExs,sessionName:session.plannedName,draft:true});
                             }
                             setView("session-detail");
                           }} style={{flex:1,...btn(C.blue),padding:"10px",fontSize:13,borderRadius:8}}>
@@ -866,7 +866,7 @@ export default function IronLogPro() {
               <div style={{display:"flex",flexDirection:"column",gap:6,alignItems:"flex-end",marginLeft:12,flexShrink:0}}>
                 {session.closed&&<span style={tag(C.green)}>{T("CLÔTURÉE","CLOSED")}</span>}
                 {!session.startedAt&&!session.closed&&(
-                  <button onClick={()=>updateSession({startedAt:new Date().toISOString()})}
+                  <button onClick={()=>updateSession({startedAt:new Date().toISOString(),draft:false,planned:false})}
                     style={{...btn(C.blue),padding:"8px 14px",fontSize:13,borderRadius:8}}>
                     {T("Démarrer","Start")}
                   </button>
@@ -1007,7 +1007,7 @@ export default function IronLogPro() {
           </button>
 
           {/* Clôturer */}
-          {session.exercises.length>0&&!session.closed&&(
+          {session.exercises.length>0&&!session.closed&&!session.draft&&(
             <button onClick={handleCloseSession} style={{width:"100%",padding:14,background:"none",border:`2px solid ${C.green}`,borderRadius:12,color:C.green,fontWeight:800,fontSize:15,cursor:"pointer",fontFamily:"inherit",letterSpacing:0.3}}>
               {T("Terminer la séance","Close session")}
             </button>
