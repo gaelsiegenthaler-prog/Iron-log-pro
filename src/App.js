@@ -149,8 +149,10 @@ const REST_PRESETS = [30,60,90,120,180];
 const today = () => new Date().toISOString().split("T")[0];
 const getHour = () => new Date().getHours();
 const isHalteres = (name) => name.toLowerCase().includes("haltère") || name.toLowerCase().includes("halteres") || name.toLowerCase().includes("dumbell");
-const calcVolume = (sets, name="") => {
-  const mult = isHalteres(name) ? 2 : 1;
+const calcVolume = (sets, nameOrEx="") => {
+  const name = typeof nameOrEx === "string" ? nameOrEx : (nameOrEx?.name||"");
+  const dw = typeof nameOrEx === "object" && nameOrEx?.doubleWeight!==undefined ? nameOrEx.doubleWeight : isHalteres(name);
+  const mult = dw ? 2 : 1;
   return sets.reduce((a,s)=>a+(parseFloat(s.reps)||0)*(parseFloat(s.weight)||0)*mult, 0);
 };
 const calcPR = (sets) => Math.max(0,...sets.map(s=>parseFloat(s.weight)||0));
@@ -227,6 +229,8 @@ export default function IronLogPro() {
   const [closeModal, setCloseModal] = useState(false);
   const [closeName, setCloseName] = useState("");
   const [sessionView, setSessionView] = useState("calendar");
+  const [collapsedExercises, setCollapsedExercises] = useState({});
+  const [editingEx, setEditingEx] = useState(null);
   const [planModal, setPlanModal] = useState(false);
   // Library UI
   const [creatingEx, setCreatingEx] = useState(false);
@@ -386,7 +390,7 @@ export default function IronLogPro() {
   const getExStats = (exId) => {
     const pts=[];
     Object.entries(sessions).sort(([a],[b])=>a>b?1:-1).forEach(([date,s])=>{
-      s.exercises?.forEach(e=>{ if(e.id===exId){const pr=calcPR(e.sets),vol=calcVolume(e.sets,e.name);if(pr>0||vol>0)pts.push({date,pr,vol});} });
+      s.exercises?.forEach(e=>{ if(e.id===exId){const pr=calcPR(e.sets),vol=calcVolume(e.sets,e);if(pr>0||vol>0)pts.push({date,pr,vol});} });
     });
     return pts;
   };
@@ -697,7 +701,7 @@ export default function IronLogPro() {
         const monthName = firstDay.toLocaleDateString(lang==="en"?"en-US":"fr-FR",{month:"long",year:"numeric"});
         const dayHeaders = lang==="en"?["M","T","W","T","F","S","S"]:["L","M","M","J","V","S","D"];
 
-        const sessionInProgress = session.exercises?.length>0 && !session.closed;
+        const sessionInProgress = session.exercises?.length>0 && !session.closed && !session.draft;
         const sessionDone = session.closed;
 
         return (
@@ -923,14 +927,12 @@ export default function IronLogPro() {
           {session.exercises.map((ex,ei)=>{
             const pr=calcPR(ex.sets);
             const vol=calcVolume(ex.sets,ex.name);
-            const isDb=isHalteres(ex.name);
-            const [collapsed, setCollapsed] = [
-              (session._collapsed||{})[ei]||false,
-              (val) => updateSession({_collapsed:{...(session._collapsed||{}),[ei]:val}})
-            ];
-            const moveEx = (dir) => {
-              const exs=[...session.exercises];
-              const swap=ei+dir;
+            const isDb=ex.doubleWeight!==undefined ? ex.doubleWeight : isHalteres(ex.name);
+            const exKey=ex.id+"-"+ei;
+            const collapsed=collapsedExercises[exKey]||false;
+            const setCollapsed=(val)=>setCollapsedExercises(prev=>({...prev,[exKey]:val}));
+            const moveEx=(dir)=>{
+              const exs=[...session.exercises]; const swap=ei+dir;
               if(swap<0||swap>=exs.length) return;
               [exs[ei],exs[swap]]=[exs[swap],exs[ei]];
               updateSession({exercises:exs});
@@ -1204,7 +1206,7 @@ export default function IronLogPro() {
               {library.every(ex=>getExStats(ex.id).length===0)&&<div style={{textAlign:"center",padding:48,color:C.muted}}>{T("Enregistre des performances pour voir ta progression","Record workouts to see your progress")}</div>}
             </>
           ):(
-            <ExStats ex={statsEx} pts={getExStats(statsEx.id)} onBack={()=>setStatsEx(null)} C={C} pill={pill} tag={tag} unit={unit} lang={lang} T={T} TL={TL} fmtShort={fmtShort}/>
+            <ExStats ex={statsEx} pts={getExStats(statsEx.id)} onBack={()=>setStatsEx(null)} C={C} pill={pill} tag={tag} unit={unit} lang={lang} T={T} TL={TL} fmtShort={fmtShort} sessions={sessions}/>
           )}
         </div>
       )}
@@ -1257,20 +1259,28 @@ export default function IronLogPro() {
               <button onClick={()=>setCreatingEx(true)} style={{...btn(C.blue),padding:"6px 14px",fontSize:12,borderRadius:8}}>+ {T("Nouveau","New")}</button>
             </div>
           </div>
-          {filteredLib.map(ex=>(
-            <div key={ex.id} style={card}>
-              <div style={{padding:"11px 14px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-                <div>
-                  <div style={{display:"flex",alignItems:"center",gap:6}}>
-                    <div style={{fontWeight:600,fontSize:14}}>{ex.name}</div>
-                    {isHalteres(ex.name)&&<span style={{...tag(C.orange),fontSize:9}}>×2</span>}
+          {filteredLib.map(ex=>{
+            const dw = ex.doubleWeight!==undefined ? ex.doubleWeight : isHalteres(ex.name);
+            return (
+              <div key={ex.id} style={card}>
+                <div style={{padding:"11px 14px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{display:"flex",alignItems:"center",gap:6}}>
+                      <div style={{fontWeight:600,fontSize:14}}>{ex.name}</div>
+                      {dw&&<span style={{...tag(C.orange),fontSize:9}}>×2</span>}
+                    </div>
+                    <div style={{display:"flex",gap:6,marginTop:4}}><span style={tag(TYPE_COLORS[ex.type]||C.blue)}>{TL[ex.type]||ex.type}</span><span style={tag("#888")}>{ex.category}</span></div>
                   </div>
-                  <div style={{display:"flex",gap:6,marginTop:4}}><span style={tag(TYPE_COLORS[ex.type]||C.blue)}>{TL[ex.type]||ex.type}</span><span style={tag("#888")}>{ex.category}</span></div>
+                  {editingLib&&(
+                    <div style={{display:"flex",gap:6,flexShrink:0,marginLeft:8}}>
+                      <button onClick={()=>setEditingEx({...ex})} style={{background:"none",border:`1px solid ${C.border}`,color:C.blue,borderRadius:6,padding:"4px 10px",fontSize:12,cursor:"pointer",fontFamily:"inherit",fontWeight:700}}>{T("Modifier","Edit")}</button>
+                      {ex.id.startsWith("c")&&<button onClick={()=>saveLibrary(library.filter(e=>e.id!==ex.id))} style={{background:"none",border:`1px solid ${C.red}`,color:C.red,borderRadius:6,padding:"4px 10px",fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>{T("Supprimer","Delete")}</button>}
+                    </div>
+                  )}
                 </div>
-                {editingLib&&ex.id.startsWith("c")&&<button onClick={()=>saveLibrary(library.filter(e=>e.id!==ex.id))} style={{background:"none",border:`1px solid ${C.red}`,color:C.red,borderRadius:6,padding:"4px 10px",fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>{T("Supprimer","Delete")}</button>}
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
@@ -1480,6 +1490,42 @@ export default function IronLogPro() {
         </div></div>
       )}
 
+      {/* MODAL edit exercise */}
+      {editingEx&&(
+        <div style={modal}><div style={mbox}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:18}}>
+            <div style={{fontWeight:800,fontSize:17}}>{T("Modifier l'exercice","Edit exercise")}</div>
+            <button onClick={()=>setEditingEx(null)} style={{background:"none",border:"none",color:C.muted,fontSize:24,cursor:"pointer"}}>×</button>
+          </div>
+          <span style={sec}>{T("Nom","Name")}</span>
+          <input value={editingEx.name} onChange={e=>setEditingEx({...editingEx,name:e.target.value})} style={{...inp,textAlign:"left",padding:"11px 14px",marginBottom:12}}/>
+          <span style={sec}>{T("Catégorie","Category")}</span>
+          <select value={editingEx.category} onChange={e=>setEditingEx({...editingEx,category:e.target.value})} style={{...inp,textAlign:"left",padding:"11px 14px",appearance:"auto",marginBottom:12}}>{CATEGORIES.map(c=><option key={c}>{c}</option>)}</select>
+          <span style={sec}>{T("Type","Type")}</span>
+          <div style={{display:"flex",gap:8,marginBottom:16}}>{Object.entries(TL).map(([k,v])=><button key={k} onClick={()=>setEditingEx({...editingEx,type:k})} style={{...pill(editingEx.type===k),flex:1,padding:"9px 0"}}>{v}</button>)}</div>
+          {/* doubleWeight toggle */}
+          <div style={{background:C.sub,border:`1px solid ${C.border}`,borderRadius:10,padding:"12px 14px",marginBottom:20}}>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+              <div>
+                <div style={{fontWeight:700,fontSize:13}}>{T("Compter ×2 (haltères bilatéraux)","Count ×2 (bilateral dumbbells)")}</div>
+                <div style={{fontSize:11,color:C.muted,marginTop:3}}>{T("Ex: DC haltères = 2 haltères","Ex: DB bench = 2 dumbbells")}</div>
+              </div>
+              <button onClick={()=>setEditingEx({...editingEx,doubleWeight:!(editingEx.doubleWeight!==undefined?editingEx.doubleWeight:isHalteres(editingEx.name))})}
+                style={{width:48,height:26,borderRadius:13,background:(editingEx.doubleWeight!==undefined?editingEx.doubleWeight:isHalteres(editingEx.name))?C.orange:"#ccc",border:"none",cursor:"pointer",position:"relative",transition:"background 0.2s",flexShrink:0}}>
+                <div style={{width:20,height:20,borderRadius:"50%",background:"#fff",position:"absolute",top:3,left:(editingEx.doubleWeight!==undefined?editingEx.doubleWeight:isHalteres(editingEx.name))?24:3,transition:"left 0.2s"}}/>
+              </button>
+            </div>
+          </div>
+          <button onClick={()=>{
+            if(!editingEx.name.trim()) return;
+            const dw = editingEx.doubleWeight!==undefined ? editingEx.doubleWeight : isHalteres(editingEx.name);
+            saveLibrary(library.map(e=>e.id===editingEx.id?{...editingEx,doubleWeight:dw}:e));
+            setEditingEx(null);
+            showToast(T("Exercice mis à jour !","Exercise updated!"));
+          }} style={{...btn(C.blue),width:"100%",padding:13,fontSize:15,borderRadius:12}}>{T("Enregistrer","Save")}</button>
+        </div></div>
+      )}
+
       {/* MODAL plan session */}
       {planModal&&(
         <div style={modal}><div style={{...mbox,maxHeight:"auto"}}>
@@ -1520,28 +1566,78 @@ export default function IronLogPro() {
   );
 }
 
-function ExStats({ ex, pts, onBack, C, pill, tag, unit, lang, T, TL, fmtShort }) {
+function ExStats({ ex, pts, onBack, C, pill, tag, unit, lang, T, TL, fmtShort, sessions }) {
   const [metric,setMetric]=useState("pr");
   const [showAllPR,setShowAllPR]=useState(false);
   const TC={weight:"#2563eb",bodyweight:"#059669",cardio:"#dc2626"};
+
+  // ── 3 types of PR ──
+  // Collect all individual sets across all sessions
+  const allSets = [];
+  Object.entries(sessions||{}).sort(([a],[b])=>a>b?1:-1).forEach(([date,s])=>{
+    s.exercises?.forEach(e=>{
+      if(e.id===ex.id){
+        e.sets?.forEach(set=>{
+          const r=parseFloat(set.reps)||0;
+          const w=parseFloat(set.weight)||0;
+          if(r>0||w>0) allSets.push({date,reps:r,weight:w,vol:r*w});
+        });
+      }
+    });
+  });
+
+  // PR Poids = max weight
+  const prWeight = allSets.length>0 ? allSets.reduce((best,s)=>s.weight>best.weight?s:best,allSets[0]) : null;
+  // PR Volume/série = max reps*weight
+  const prVolSerie = allSets.length>0 ? allSets.reduce((best,s)=>s.vol>best.vol?s:best,allSets[0]) : null;
+  // PR Reps = max reps
+  const prReps = allSets.length>0 ? allSets.reduce((best,s)=>s.reps>best.reps?s:best,allSets[0]) : null;
+
   const pr=pts.length>0?Math.max(...pts.map(p=>p.pr)):0;
   const bestVol=pts.length>0?Math.max(...pts.map(p=>p.vol)):0;
   const prHistory=[];let runningPR=0;
   pts.forEach(p=>{if(p.pr>runningPR){runningPR=p.pr;prHistory.push({date:p.date,pr:p.pr,prev:prHistory.length>0?prHistory[prHistory.length-1].pr:0});}});
   const displayPR=showAllPR?[...prHistory].reverse():[...prHistory].reverse().slice(0,5);
+
   return (
     <div>
       <button onClick={onBack} style={{background:"none",border:"none",color:C.blue,fontWeight:700,fontSize:14,cursor:"pointer",marginBottom:14,padding:0,fontFamily:"inherit"}}>← {T("Retour","Back")}</button>
       <div style={{fontWeight:800,fontSize:20,marginBottom:4}}>{ex.name}</div>
       <div style={{display:"flex",gap:6,marginBottom:16}}><span style={tag(TC[ex.type]||C.blue)}>{TL[ex.type]}</span><span style={tag("#888")}>{ex.category}</span></div>
+
+      {/* 3 PR cards */}
+      <div style={{marginBottom:14}}>
+        <div style={{fontSize:11,fontWeight:700,color:C.muted,textTransform:"uppercase",letterSpacing:0.5,marginBottom:8}}>{T("Records personnels","Personal records")}</div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginBottom:8}}>
+          <div style={{background:C.card,border:`2px solid ${C.blue}33`,borderRadius:12,padding:"12px 10px",textAlign:"center"}}>
+            <div style={{fontSize:10,fontWeight:700,color:C.blue,textTransform:"uppercase",letterSpacing:0.5,marginBottom:4}}>{T("Poids max","Max weight")}</div>
+            <div style={{fontSize:16,fontWeight:800,color:C.text}}>{prWeight?`${prWeight.weight} ${unit}`:"—"}</div>
+            {prWeight&&<div style={{fontSize:10,color:C.muted,marginTop:2}}>×{prWeight.reps} reps</div>}
+          </div>
+          <div style={{background:C.card,border:`2px solid ${C.green}33`,borderRadius:12,padding:"12px 10px",textAlign:"center"}}>
+            <div style={{fontSize:10,fontWeight:700,color:C.green,textTransform:"uppercase",letterSpacing:0.5,marginBottom:4}}>{T("Vol/série","Vol/set")}</div>
+            <div style={{fontSize:16,fontWeight:800,color:C.text}}>{prVolSerie?`${prVolSerie.vol.toLocaleString("fr-FR")} ${unit}`:"—"}</div>
+            {prVolSerie&&<div style={{fontSize:10,color:C.muted,marginTop:2}}>{prVolSerie.reps}×{prVolSerie.weight}{unit}</div>}
+          </div>
+          <div style={{background:C.card,border:`2px solid ${C.orange}33`,borderRadius:12,padding:"12px 10px",textAlign:"center"}}>
+            <div style={{fontSize:10,fontWeight:700,color:C.orange,textTransform:"uppercase",letterSpacing:0.5,marginBottom:4}}>{T("Max reps","Max reps")}</div>
+            <div style={{fontSize:16,fontWeight:800,color:C.text}}>{prReps?`${prReps.reps} reps`:"—"}</div>
+            {prReps&&<div style={{fontSize:10,color:C.muted,marginTop:2}}>{prReps.weight?`@ ${prReps.weight} ${unit}`:""}</div>}
+          </div>
+        </div>
+      </div>
+
+      {/* General stats */}
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:14}}>
-        {[{l:T("Meilleur PR","Best PR"),v:`${pr} ${unit}`,c:C.blue},{l:T("Meilleur volume","Best volume"),v:`${bestVol.toLocaleString("fr-FR")} ${unit}`,c:C.green},{l:T("Sessions","Sessions"),v:pts.length,c:C.text},{l:T("Records battus","PRs broken"),v:prHistory.length,c:C.orange}].map(k=>(
-          <div key={k.l} style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:12,padding:"14px 16px"}}>
-            <div style={{fontSize:22,fontWeight:800,color:k.c}}>{k.v}</div>
+        {[{l:T("Sessions","Sessions"),v:pts.length,c:C.text},{l:T("Records poids","Weight PRs"),v:prHistory.length,c:C.orange}].map(k=>(
+          <div key={k.l} style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:12,padding:"12px 14px"}}>
+            <div style={{fontSize:20,fontWeight:800,color:k.c}}>{k.v}</div>
             <div style={{fontSize:10,color:C.muted,fontWeight:600,textTransform:"uppercase",letterSpacing:0.5,marginTop:2}}>{k.l}</div>
           </div>
         ))}
       </div>
+
+      {/* Chart */}
       <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:14,padding:"16px",marginBottom:14}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
           <div style={{fontWeight:700,fontSize:14}}>{T("Progression","Progress")}</div>
@@ -1550,9 +1646,11 @@ function ExStats({ ex, pts, onBack, C, pill, tag, unit, lang, T, TL, fmtShort })
         {pts.length>=2?<Sparkline data={pts.map(p=>({value:metric==="pr"?p.pr:p.vol}))} color={metric==="pr"?C.blue:C.green}/>:<div style={{color:C.muted,fontSize:13}}>{T("Pas assez de données","Not enough data")}</div>}
         <div style={{marginTop:14}}>{[...pts].reverse().slice(0,5).map(p=>(<div key={p.date} style={{display:"flex",justifyContent:"space-between",padding:"7px 0",borderBottom:`1px solid ${C.border}`,fontSize:13}}><span style={{color:C.muted,textTransform:"capitalize"}}>{fmtShort(p.date,lang)}</span><span style={{fontWeight:700}}>PR {p.pr} {unit} · {p.vol.toLocaleString("fr-FR")} {unit}</span></div>))}</div>
       </div>
+
+      {/* PR timeline */}
       <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:14,padding:"16px"}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
-          <div style={{fontWeight:700,fontSize:14}}>{T("Historique des records","PR Timeline")}</div>
+          <div style={{fontWeight:700,fontSize:14}}>{T("Timeline records poids","Weight PR timeline")}</div>
           <span style={{...tag(C.orange),fontSize:11}}>{prHistory.length} PR</span>
         </div>
         {prHistory.length===0&&<div style={{color:C.muted,fontSize:13,textAlign:"center",padding:"12px 0"}}>{T("Aucun record","No PRs yet")}</div>}
