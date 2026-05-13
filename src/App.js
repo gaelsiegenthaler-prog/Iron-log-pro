@@ -232,6 +232,7 @@ export default function IronLogPro() {
   const [collapsedExercises, setCollapsedExercises] = useState({});
   const [editingEx, setEditingEx] = useState(null);
   const [planModal, setPlanModal] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState(false);
   // Library UI
   const [creatingEx, setCreatingEx] = useState(false);
   const [newEx, setNewEx] = useState({name:"",category:"Pectoraux",type:"weight"});
@@ -556,7 +557,7 @@ export default function IronLogPro() {
     const hidden=settings.hiddenTabs||[];
     saveSettings({...settings,hiddenTabs:hidden.includes(tabId)?hidden.filter(t=>t!==tabId):[...hidden,tabId]});
   };
-  const goTo = id => { setView(id); setStatsEx(null); setEditingProgram(null); setEditingDay(null); setAddingDayEx(false); setShowTimer(false); setSessionView("calendar"); };
+  const goTo = id => { setView(id); setStatsEx(null); setEditingProgram(null); setEditingDay(null); setAddingDayEx(false); setShowTimer(false); setSessionView("calendar"); setDeleteConfirm(false); };
 
   // ── Styles ──
   const inp = {background:C.inputBg,border:`1.5px solid ${C.border}`,borderRadius:8,color:C.text,padding:"9px 10px",fontSize:15,fontFamily:"inherit",width:"100%",textAlign:"center",boxSizing:"border-box",outline:"none"};
@@ -730,7 +731,7 @@ export default function IronLogPro() {
                   const isToday=d===today();
                   const dotColor=done?C.green:inProgress?C.red:planned?C.orange:"transparent";
                   return (
-                    <div key={d} onClick={()=>setSelectedDate(d)}
+                    <div key={d} onClick={()=>{setSelectedDate(d);setDeleteConfirm(false);}}
                       style={{display:"flex",flexDirection:"column",alignItems:"center",padding:"3px 0",cursor:"pointer"}}>
                       <div style={{
                         width:30,height:30,borderRadius:"50%",
@@ -768,9 +769,29 @@ export default function IronLogPro() {
                       {session.exercises.length} {T("exercice(s)","exercise(s)")} · {session.exercises.reduce((a,e)=>a+e.sets.length,0)} {T("séries","sets")} · {session.exercises.reduce((a,e)=>a+calcVolume(e.sets,e.name),0).toLocaleString("fr-FR")} {unit}
                       {session.duration&&<span style={{color:C.muted}}> · {session.duration}</span>}
                     </div>
-                    <button onClick={()=>setView("session-detail")} style={{...btn(session.draft?C.blue:sessionDone?C.green:C.blue),width:"100%",padding:11,fontSize:14,borderRadius:10}}>
+                    <button onClick={()=>setView("session-detail")} style={{...btn(session.draft?C.blue:sessionDone?C.blue:C.blue),width:"100%",padding:11,fontSize:14,borderRadius:10,marginBottom:8}}>
                       {session.draft?T("Voir / Modifier","View / Edit"):sessionDone?T("Voir / Modifier","View / Edit"):T("Continuer la séance","Continue session")}
                     </button>
+                    {/* Supprimer la séance */}
+                    <button onClick={()=>setDeleteConfirm(true)} style={{width:"100%",padding:10,background:"none",border:`1.5px solid ${C.red}44`,borderRadius:10,color:C.red,cursor:"pointer",fontSize:13,fontFamily:"inherit",fontWeight:600}}>
+                      {T("Supprimer cette séance","Delete this session")}
+                    </button>
+                    {deleteConfirm&&(
+                      <div style={{marginTop:10,background:isDark?"#2a1a1a":"#fff5f5",border:`1.5px solid ${C.red}`,borderRadius:10,padding:14}}>
+                        <div style={{fontSize:13,color:C.red,fontWeight:700,marginBottom:8}}>{T("Supprimer définitivement ?","Delete permanently?")}</div>
+                        <div style={{fontSize:12,color:C.muted,marginBottom:12}}>{T("Toutes les données de cette séance seront perdues.","All data for this session will be lost.")}</div>
+                        <div style={{display:"flex",gap:8}}>
+                          <button onClick={()=>setDeleteConfirm(false)} style={{flex:1,padding:"9px",background:"none",border:`1px solid ${C.border}`,borderRadius:8,color:C.muted,cursor:"pointer",fontFamily:"inherit",fontWeight:600}}>{T("Annuler","Cancel")}</button>
+                          <button onClick={()=>{
+                            const updated={...sessions};
+                            delete updated[selectedDate];
+                            saveSessions(updated);
+                            setDeleteConfirm(false);
+                            showToast(T("Séance supprimée","Session deleted"));
+                          }} style={{flex:1,padding:"9px",background:C.red,border:"none",borderRadius:8,color:"#fff",cursor:"pointer",fontFamily:"inherit",fontWeight:700}}>{T("Supprimer","Delete")}</button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 ):(
                   <div>
@@ -783,7 +804,6 @@ export default function IronLogPro() {
                           <span style={{fontSize:14,color:C.orange,fontWeight:700,flex:1}}>{session.plannedName||T("Séance prévue","Planned session")}</span>
                         </div>
                         <div style={{display:"flex",gap:8}}>
-                          {/* Voir / Modifier — charge les exercices sans démarrer */}
                           <button onClick={()=>{
                             const day=activeProgram?.days?.find(d=>d.name===session.plannedName);
                             if(day&&(!session.exercises||session.exercises.length===0)){
@@ -800,26 +820,19 @@ export default function IronLogPro() {
                           }} style={{flex:1,...btn(C.blue),padding:"10px",fontSize:13,borderRadius:8}}>
                             {T("Voir / Modifier","View / Edit")}
                           </button>
-                          {/* Lancer — démarre officiellement */}
                           <button onClick={()=>{
                             const day=activeProgram?.days?.find(d=>d.name===session.plannedName);
                             if(day) launchDay(day);
-                            else {updateSession({exercises:[],note:"",mood:0,energy:0,sessionName:session.plannedName,startedAt:new Date().toISOString()});setView("session-detail");}
+                            else {updateSession({exercises:[],note:"",mood:0,energy:0,sessionName:session.plannedName});setView("session-detail");}
                           }} style={{...btn(C.orange),padding:"10px 16px",fontSize:13,borderRadius:8}}>
                             {T("Lancer","Start")}
                           </button>
                         </div>
                       </div>
                     )}
-                    {activeProgram&&(activeProgram.days||[]).length>0&&(
-                      <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:10}}>
-                        {activeProgram.days.map((day,di)=>(
-                          <button key={di} onClick={()=>launchDay(day)} style={{...btn(activeProgram.color),padding:"8px 14px",fontSize:13,borderRadius:8}}>{day.name}</button>
-                        ))}
-                      </div>
-                    )}
+                    {/* Actions */}
                     <div style={{display:"flex",gap:8}}>
-                      <button onClick={()=>{updateSession({exercises:[],note:"",mood:0,energy:0});setView("session-detail");}} style={{flex:1,padding:11,background:"none",border:`1.5px dashed ${C.border}`,borderRadius:10,color:C.muted,cursor:"pointer",fontSize:13,fontFamily:"inherit",fontWeight:700}}>
+                      <button onClick={()=>{updateSession({exercises:[],note:"",mood:0,energy:0,draft:true});setView("session-detail");}} style={{flex:1,padding:11,background:"none",border:`1.5px dashed ${C.border}`,borderRadius:10,color:C.muted,cursor:"pointer",fontSize:13,fontFamily:"inherit",fontWeight:700}}>
                         + {T("Séance libre","Free session")}
                       </button>
                       {!session.planned&&(
