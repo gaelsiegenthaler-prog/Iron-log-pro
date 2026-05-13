@@ -750,13 +750,12 @@ export default function IronLogPro() {
             </div>
 
             {/* Session card for selected date */}
-            <div style={{...card,marginBottom:12,overflow:"hidden"}}>
-              {(()=>{
+            {(()=>{
                 const hasContent = session.exercises?.length>0 || session.planned;
                 const bannerColor = sessionDone?C.green : sessionInProgress?C.red : (session.draft||session.planned)?C.orange : null;
                 const sessionName = session.sessionName || (session.planned?session.plannedName:null);
 
-                const DeleteBtn = () => !deleteConfirm?(
+                const deleteSection = !deleteConfirm?(
                   <button onClick={()=>setDeleteConfirm(true)} style={{width:"100%",padding:9,background:"none",border:`1.5px solid ${C.red}44`,borderRadius:10,color:C.red,cursor:"pointer",fontSize:12,fontFamily:"inherit",fontWeight:600,marginTop:8}}>
                     {T("Supprimer cette séance","Delete this session")}
                   </button>
@@ -772,7 +771,7 @@ export default function IronLogPro() {
                 );
 
                 if(!hasContent) return (
-                  <div style={{padding:"14px 16px"}}>
+                  <div style={{...card,marginBottom:12,padding:"14px 16px"}}>
                     <div style={{fontWeight:800,fontSize:17,marginBottom:2,textTransform:"capitalize"}}>{fmtDate(selectedDate,lang)}</div>
                     <div style={{fontSize:13,color:C.muted,marginBottom:12}}>{T("Aucune séance ce jour","No session this day")}</div>
                     <div style={{display:"flex",gap:8}}>
@@ -787,8 +786,7 @@ export default function IronLogPro() {
                 );
 
                 return (
-                  <div>
-                    {/* Colored banner */}
+                  <div style={{...card,marginBottom:12,overflow:"hidden"}}>
                     <div style={{background:bannerColor+"18",borderBottom:`1px solid ${bannerColor}33`,padding:"12px 16px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
                       <div style={{fontWeight:800,fontSize:17,color:bannerColor}}>{sessionName||T("Séance","Session")}</div>
                       <div style={{display:"flex",gap:6,alignItems:"center"}}>
@@ -797,38 +795,28 @@ export default function IronLogPro() {
                         {(session.draft||session.planned)&&!sessionDone&&!sessionInProgress&&<span style={tag(C.orange)}>{T("PRÉPARÉE","DRAFT")}</span>}
                       </div>
                     </div>
-
                     <div style={{padding:"12px 16px"}}>
-                      {/* Date + stats */}
                       <div style={{fontSize:12,color:C.muted,marginBottom:10,textTransform:"capitalize"}}>
                         {fmtDate(selectedDate,lang)}
                         {session.exercises?.length>0&&(
                           <span> · {session.exercises.length} {T("exo","ex")} · {session.exercises.reduce((a,e)=>a+e.sets.length,0)} {T("séries","sets")} · {session.exercises.reduce((a,e)=>a+calcVolume(e.sets,e.name),0).toLocaleString("fr-FR")} {unit}{session.duration?` · ${session.duration}`:""}</span>
                         )}
                       </div>
-
-                      {/* Buttons based on state */}
                       {sessionDone&&(
                         <>
-                          <button onClick={()=>setView("session-detail")} style={{...btn(C.green),width:"100%",padding:11,fontSize:14,borderRadius:10}}>
-                            {T("Voir / Modifier","View / Edit")}
-                          </button>
-                          <DeleteBtn/>
+                          <button onClick={()=>setView("session-detail")} style={{...btn(C.green),width:"100%",padding:11,fontSize:14,borderRadius:10}}>{T("Voir / Modifier","View / Edit")}</button>
+                          {deleteSection}
                         </>
                       )}
-
                       {sessionInProgress&&(
                         <>
-                          <button onClick={()=>setView("session-detail")} style={{...btn(C.red),width:"100%",padding:11,fontSize:14,borderRadius:10}}>
-                            {T("Continuer la séance","Continue session")}
-                          </button>
-                          <DeleteBtn/>
+                          <button onClick={()=>setView("session-detail")} style={{...btn(C.red),width:"100%",padding:11,fontSize:14,borderRadius:10}}>{T("Continuer la séance","Continue session")}</button>
+                          {deleteSection}
                         </>
                       )}
-
                       {(session.draft||session.planned)&&!sessionDone&&!sessionInProgress&&(
                         <>
-                          <div style={{display:"flex",gap:8,marginBottom:0}}>
+                          <div style={{display:"flex",gap:8}}>
                             <button onClick={()=>{
                               if(session.planned&&!session.exercises?.length){
                                 const day=activeProgram?.days?.find(d=>d.name===session.plannedName);
@@ -844,24 +832,20 @@ export default function IronLogPro() {
                                 }
                               }
                               setView("session-detail");
-                            }} style={{flex:1,...btn(C.blue),padding:"11px",fontSize:13,borderRadius:8}}>
-                              {T("Voir / Modifier","View / Edit")}
-                            </button>
+                            }} style={{flex:1,...btn(C.blue),padding:"11px",fontSize:13,borderRadius:8}}>{T("Voir / Modifier","View / Edit")}</button>
                             <button onClick={()=>{
                               const day=activeProgram?.days?.find(d=>d.name===session.plannedName);
-                              if(day) launchDay(day);
-                              else setView("session-detail");
-                            }} style={{...btn(C.orange),padding:"11px 18px",fontSize:13,borderRadius:8,flexShrink:0}}>
-                              {T("Lancer","Start")}
-                            </button>
+                              if(day) launchDay(day); else setView("session-detail");
+                            }} style={{...btn(C.orange),padding:"11px 18px",fontSize:13,borderRadius:8,flexShrink:0}}>{T("Lancer","Start")}</button>
                           </div>
-                          <DeleteBtn/>
+                          {deleteSection}
                         </>
                       )}
                     </div>
                   </div>
                 );
               })()}
+
           </div>
         );
       })()}
