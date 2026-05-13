@@ -367,16 +367,24 @@ export default function IronLogPro() {
 
   // ── Launch day ──
   const launchDay = (day) => {
-    const newExs=day.exercises.map(ex=>{
-      const lastPerf=getLastPerf(ex.id);
-      const sets=lastPerf
-        ? lastPerf.sets.map(s=>({reps:"",weight:"",targetReps:s.reps,targetWeight:s.weight,comment:""}))
-        : [{reps:"",weight:"",targetReps:"",targetWeight:"",comment:""}];
-      return {...ex,sets};
+    // Prevent duplicates — only add exercises not already in session
+    const existingIds = session.exercises.map(e=>e.id);
+    const newExs = day.exercises
+      .filter(ex => !existingIds.includes(ex.id))
+      .map(ex=>{
+        const lastPerf=getLastPerf(ex.id);
+        const sets=lastPerf
+          ? lastPerf.sets.map(s=>({reps:"",weight:"",targetReps:s.reps,targetWeight:s.weight,comment:""}))
+          : [{reps:"",weight:"",targetReps:"",targetWeight:"",comment:""}];
+        return {...ex,sets};
+      });
+    updateSession({
+      exercises:[...session.exercises,...newExs],
+      sessionName: session.sessionName||day.name,
+      draft: true,
     });
-    updateSession({exercises:[...session.exercises,...newExs], sessionName:day.name, startedAt:new Date().toISOString(), draft:false});
     setView("session-detail");
-    showToast(`${day.name} ${T("lancé !","started!")}`);
+    showToast(`${day.name} ${T("chargé !","loaded!")}`);
   };
 
   const duplicateSession = (fromDate) => {
@@ -614,24 +622,26 @@ export default function IronLogPro() {
               {days.map(d=>{
                 const s=sessions[d];
                 const done=s?.closed;
-                const planned=s?.planned;
+                const inProgress=s?.startedAt&&!s?.closed&&!s?.draft&&s?.exercises?.length>0;
+                const planned=!done&&!inProgress&&(s?.planned||s?.draft);
                 const isToday=d===today();
                 const isPast=d<today();
                 const dayName=new Date(d+"T00:00:00").toLocaleDateString(lang==="en"?"en-US":"fr-FR",{weekday:"short"}).slice(0,2).toUpperCase();
-                const bgColor = done ? C.green : planned ? C.orange+"33" : isToday ? C.blue+"22" : "transparent";
-                const borderColor = done ? C.green : planned ? C.orange : isToday ? C.blue : isPast ? C.border : C.border+"55";
-                const labelColor = done ? C.green : planned ? C.orange : isToday ? C.blue : C.muted;
+                const bgColor = done?C.green+"33":inProgress?C.red+"33":planned?C.orange+"33":isToday?C.blue+"22":"transparent";
+                const borderColor = done?C.green:inProgress?C.red:planned?C.orange:isToday?C.blue:isPast?C.border:C.border+"55";
+                const labelColor = done?C.green:inProgress?C.red:planned?C.orange:isToday?C.blue:C.muted;
                 return (
                   <div key={d} onClick={()=>{setSelectedDate(d);setView("session");}}
                     style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:3,cursor:"pointer"}}>
                     <div style={{fontSize:9,fontWeight:700,color:labelColor}}>{dayName}</div>
-                    <div style={{width:32,height:32,borderRadius:"50%",background:bgColor,border:`2px solid ${borderColor}`,display:"flex",alignItems:"center",justifyContent:"center",opacity:!done&&!planned&&isPast&&!isToday?0.35:1}}>
-                      {done&&<div style={{width:12,height:12,borderRadius:"50%",background:"#fff"}}/>}
-                      {!done&&planned&&<div style={{width:10,height:10,borderRadius:"50%",background:C.orange+"88"}}/>}
-                      {!done&&!planned&&isToday&&<div style={{width:8,height:8,borderRadius:"50%",background:C.blue}}/>}
+                    <div style={{width:32,height:32,borderRadius:"50%",background:bgColor,border:`2px solid ${borderColor}`,display:"flex",alignItems:"center",justifyContent:"center",opacity:!done&&!planned&&!inProgress&&isPast&&!isToday?0.35:1}}>
+                      {done&&<div style={{width:12,height:12,borderRadius:"50%",background:C.green}}/>}
+                      {inProgress&&<div style={{width:12,height:12,borderRadius:"50%",background:C.red}}/>}
+                      {planned&&<div style={{width:10,height:10,borderRadius:"50%",background:C.orange}}/>}
+                      {!done&&!inProgress&&!planned&&isToday&&<div style={{width:8,height:8,borderRadius:"50%",background:C.blue}}/>}
                     </div>
                     {done&&s.sessionName&&<div style={{fontSize:7,color:C.green,fontWeight:700,textAlign:"center",maxWidth:34,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{s.sessionName}</div>}
-                    {!done&&planned&&s.plannedName&&<div style={{fontSize:7,color:C.orange,fontWeight:700,textAlign:"center",maxWidth:34,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{s.plannedName}</div>}
+                    {planned&&s.plannedName&&<div style={{fontSize:7,color:C.orange,fontWeight:700,textAlign:"center",maxWidth:34,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{s.plannedName}</div>}
                   </div>
                 );
               })}
@@ -664,18 +674,6 @@ export default function IronLogPro() {
               <WeekRow days={nextWeek} label={T("Semaine à venir","Next week")}/>
             </div>
 
-            {/* Programme actif */}
-            {activeProgram&&(activeProgram.days||[]).length>0&&(
-              <div>
-                <div style={{fontSize:11,fontWeight:700,color:C.muted,textTransform:"uppercase",letterSpacing:0.5,marginBottom:8}}>{T("Lancer une séance","Start a session")}</div>
-                {activeProgram.days.map((day,di)=>(
-                  <div key={di} style={{display:"flex",alignItems:"center",justifyContent:"space-between",background:activeProgram.color+"10",border:`1px solid ${activeProgram.color}33`,borderRadius:12,padding:"14px 16px",marginBottom:8}}>
-                    <div style={{fontWeight:700,fontSize:16,color:activeProgram.color}}>{day.name}</div>
-                    <button onClick={()=>launchDay(day)} style={{...btn(activeProgram.color),padding:"8px 18px",fontSize:13,borderRadius:8,flexShrink:0,marginLeft:8}}>{T("Lancer","Start")}</button>
-                  </div>
-                ))}
-              </div>
-            )}
             {!activeProgram&&(
               <div style={{textAlign:"center",padding:"24px 20px",border:`1.5px dashed ${C.border}`,borderRadius:14,color:C.muted}}>
                 <div style={{fontSize:13,marginBottom:8}}>{T("Aucun programme actif","No active program")}</div>
@@ -726,10 +724,11 @@ export default function IronLogPro() {
                   const d=`${year}-${String(month+1).padStart(2,"0")}-${String(dayNum).padStart(2,"0")}`;
                   const s=sessions[d];
                   const done=s?.closed;
-                  const planned=s?.planned&&!s?.closed&&!s?.exercises?.length;
+                  const inProgress=s?.startedAt&&!s?.closed&&!s?.draft&&s?.exercises?.length>0;
+                  const planned=!done&&!inProgress&&(s?.planned||s?.draft);
                   const isSelected=d===selectedDate;
                   const isToday=d===today();
-                  const hasSes=s?.exercises?.length>0;
+                  const dotColor=done?C.green:inProgress?C.red:planned?C.orange:"transparent";
                   return (
                     <div key={d} onClick={()=>setSelectedDate(d)}
                       style={{display:"flex",flexDirection:"column",alignItems:"center",padding:"3px 0",cursor:"pointer"}}>
@@ -742,7 +741,7 @@ export default function IronLogPro() {
                         <span style={{fontSize:12,fontWeight:isSelected||isToday?700:400,color:isSelected?"#fff":isToday?C.blue:C.text}}>{dayNum}</span>
                       </div>
                       {/* Dot indicator */}
-                      <div style={{width:5,height:5,borderRadius:"50%",background:done?C.green:planned?C.orange:hasSes?C.orange+"88":"transparent",marginTop:1}}/>
+                      <div style={{width:5,height:5,borderRadius:"50%",background:dotColor,marginTop:1}}/>
                     </div>
                   );
                 })}
@@ -758,7 +757,8 @@ export default function IronLogPro() {
                   </div>
                   <div style={{display:"flex",gap:6,alignItems:"center"}}>
                     {sessionDone&&<span style={tag(C.green)}>{T("CLÔTURÉE","CLOSED")}</span>}
-                    {sessionInProgress&&<span style={tag(C.orange)}>{T("EN COURS","IN PROGRESS")}</span>}
+                    {sessionInProgress&&<span style={tag(C.red)}>{T("EN COURS","IN PROGRESS")}</span>}
+                    {session.draft&&!sessionDone&&!sessionInProgress&&<span style={tag(C.orange)}>{T("PRÉPARÉE","DRAFT")}</span>}
                   </div>
                 </div>
                 {session.sessionName&&<div style={{fontSize:12,color:C.muted,marginTop:2,textTransform:"capitalize",marginBottom:8}}>{fmtDate(selectedDate,lang)}</div>}
@@ -1058,11 +1058,10 @@ export default function IronLogPro() {
                 <div style={{padding:"10px 16px",display:"flex",flexDirection:"column",gap:6}}>
                   {prog.days.map((day,di)=>(
                     <div key={di} style={{display:"flex",alignItems:"center",justifyContent:"space-between",background:prog.color+"10",border:`1px solid ${prog.color}33`,borderRadius:10,padding:"10px 14px"}}>
-                      <div>
-                        <div style={{fontWeight:700,fontSize:14,color:prog.color}}>{day.name}</div>
-                        <div style={{fontSize:11,color:C.muted,marginTop:2}}>{(day.exercises||[]).map(e=>e.name).join(" · ")}</div>
-                      </div>
-                      <button onClick={()=>launchDay(day)} style={{...btn(prog.color),padding:"7px 14px",fontSize:12,borderRadius:8,flexShrink:0,marginLeft:8}}>{T("Lancer","Start")}</button>
+                      <div style={{fontWeight:700,fontSize:14,color:prog.color}}>{day.name}</div>
+                      <button onClick={()=>{setEditingProgram({idx:pi,program:prog});setEditingDay({progIdx:pi,dayIdx:di,day});}} style={{background:"none",border:`1px solid ${prog.color}`,color:prog.color,borderRadius:8,padding:"5px 14px",fontSize:12,cursor:"pointer",fontFamily:"inherit",fontWeight:700,flexShrink:0,marginLeft:8}}>
+                        {T("Modifier","Edit")}
+                      </button>
                     </div>
                   ))}
                 </div>
