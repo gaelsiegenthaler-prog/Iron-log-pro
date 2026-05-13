@@ -803,7 +803,7 @@ export default function IronLogPro() {
                           <div style={{width:8,height:8,borderRadius:"50%",background:C.orange,flexShrink:0}}/>
                           <span style={{fontSize:14,color:C.orange,fontWeight:700,flex:1}}>{session.plannedName||T("Séance prévue","Planned session")}</span>
                         </div>
-                        <div style={{display:"flex",gap:8}}>
+                        <div style={{display:"flex",gap:8,marginBottom:8}}>
                           <button onClick={()=>{
                             const day=activeProgram?.days?.find(d=>d.name===session.plannedName);
                             if(day&&(!session.exercises||session.exercises.length===0)){
@@ -828,24 +828,34 @@ export default function IronLogPro() {
                             {T("Lancer","Start")}
                           </button>
                         </div>
+                        {/* Supprimer directement visible */}
+                        {!deleteConfirm?(
+                          <button onClick={()=>setDeleteConfirm(true)} style={{width:"100%",padding:9,background:"none",border:`1.5px solid ${C.red}44`,borderRadius:10,color:C.red,cursor:"pointer",fontSize:12,fontFamily:"inherit",fontWeight:600}}>
+                            {T("Supprimer cette séance","Delete this session")}
+                          </button>
+                        ):(
+                          <div style={{background:isDark?"#2a1a1a":"#fff5f5",border:`1.5px solid ${C.red}`,borderRadius:10,padding:14}}>
+                            <div style={{fontSize:13,color:C.red,fontWeight:700,marginBottom:6}}>{T("Supprimer définitivement ?","Delete permanently?")}</div>
+                            <div style={{fontSize:12,color:C.muted,marginBottom:10}}>{T("Toutes les données seront perdues.","All data will be lost.")}</div>
+                            <div style={{display:"flex",gap:8}}>
+                              <button onClick={()=>setDeleteConfirm(false)} style={{flex:1,padding:"8px",background:"none",border:`1px solid ${C.border}`,borderRadius:8,color:C.muted,cursor:"pointer",fontFamily:"inherit",fontWeight:600}}>{T("Annuler","Cancel")}</button>
+                              <button onClick={()=>{const u={...sessions};delete u[selectedDate];saveSessions(u);setDeleteConfirm(false);showToast(T("Séance supprimée","Session deleted"));}} style={{flex:1,padding:"8px",background:C.red,border:"none",borderRadius:8,color:"#fff",cursor:"pointer",fontFamily:"inherit",fontWeight:700}}>{T("Supprimer","Delete")}</button>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     )}
-                    {/* Actions */}
-                    <div style={{display:"flex",gap:8}}>
-                      <button onClick={()=>{updateSession({exercises:[],note:"",mood:0,energy:0,draft:true});setView("session-detail");}} style={{flex:1,padding:11,background:"none",border:`1.5px dashed ${C.border}`,borderRadius:10,color:C.muted,cursor:"pointer",fontSize:13,fontFamily:"inherit",fontWeight:700}}>
-                        + {T("Séance libre","Free session")}
-                      </button>
-                      {!session.planned&&(
+                    {/* Actions si pas programmé */}
+                    {!session.planned&&(
+                      <div style={{display:"flex",gap:8}}>
+                        <button onClick={()=>{updateSession({exercises:[],note:"",mood:0,energy:0,draft:true});setView("session-detail");}} style={{flex:1,padding:11,background:"none",border:`1.5px dashed ${C.border}`,borderRadius:10,color:C.muted,cursor:"pointer",fontSize:13,fontFamily:"inherit",fontWeight:700}}>
+                          + {T("Séance libre","Free session")}
+                        </button>
                         <button onClick={()=>setPlanModal(true)} style={{padding:"11px 14px",background:"none",border:`1.5px solid ${C.orange}44`,borderRadius:10,color:C.orange,cursor:"pointer",fontSize:12,fontFamily:"inherit",fontWeight:700}}>
                           {T("À programmer","Plan")}
                         </button>
-                      )}
-                      {session.planned&&(
-                        <button onClick={()=>updateSession({planned:false,plannedName:""})} style={{padding:"11px 14px",background:"none",border:`1.5px solid ${C.border}`,borderRadius:10,color:C.muted,cursor:"pointer",fontSize:11,fontFamily:"inherit"}}>
-                          {T("Annuler","Cancel")}
-                        </button>
-                      )}
-                    </div>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
