@@ -208,7 +208,7 @@ function RestTimer({ C, T, isDark }) {
 }
 
 export default function IronLogPro() {
-  const [settings, setSettings] = useState({ theme:"auto",lang:"fr",username:"",unit:"kg",tabOrder:[...ALL_TABS],hiddenTabs:[] });
+  const [settings, setSettings] = useState({ theme:"auto",lang:"fr",username:"",unit:"kg",tabOrder:[...ALL_TABS],hiddenTabs:[],weeklyGoal:4,favorites:[] });
   const [splashDone, setSplashDone] = useState(false);
   const [view, setView] = useState("home");
   const [selectedDate, setSelectedDate] = useState(today());
@@ -233,6 +233,9 @@ export default function IronLogPro() {
   const [editingEx, setEditingEx] = useState(null);
   const [planModal, setPlanModal] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState(false);
+  const [statsFilter, setStatsFilter] = useState("all"); // all | favorites | muscle
+  const [statsMuscle, setStatsMuscle] = useState("Pectoraux");
+  const [statsMuscleOpen, setStatsMuscleOpen] = useState(false);
   // Library UI
   const [creatingEx, setCreatingEx] = useState(false);
   const [newEx, setNewEx] = useState({name:"",category:"Pectoraux",type:"weight"});
@@ -650,20 +653,44 @@ export default function IronLogPro() {
           </div>
         );
 
+        const sessionsThisWeek=wdays.filter(d=>sessions[d]?.closed).length;
+        const volumeThisWeek=wdays.reduce((a,d)=>a+(sessions[d]?.exercises||[]).reduce((b,e)=>b+calcVolume(e.sets,e),0),0);
+        const weeklyGoal=settings.weeklyGoal||4;
+        const goalPct=Math.min(1,sessionsThisWeek/weeklyGoal);
+        const lastClosed=Object.entries(sessions).filter(([,s])=>s.closed).sort(([a],[b])=>a>b?-1:1)[0];
+
         return (
           <div style={{padding:"14px 16px"}}>
-            {/* KPI row — all black */}
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginBottom:16}}>
-              {[
-                {l:T("Cette semaine","This week"),v:sessionsThisWeek},
-                {l:T("Total sessions","Total sessions"),v:g.sessions},
-                {l:"Volume",v:g.volume>0?`${(g.volume/1000).toFixed(1)}t`:"—"},
-              ].map(s=>(
-                <div key={s.l} style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:12,padding:"12px 8px",textAlign:"center"}}>
-                  <div style={{fontSize:20,fontWeight:800,color:C.text}}>{s.v}</div>
-                  <div style={{fontSize:10,color:C.muted,fontWeight:600,letterSpacing:0.5,textTransform:"uppercase",marginTop:2}}>{s.l}</div>
+            {/* All Time */}
+            <div style={{fontSize:10,fontWeight:700,color:C.muted,letterSpacing:1,textTransform:"uppercase",marginBottom:8}}>All Time</div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:14}}>
+              <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:12,padding:"12px 14px",textAlign:"center"}}>
+                <div style={{fontSize:22,fontWeight:800,color:C.text}}>{g.sessions}</div>
+                <div style={{fontSize:10,color:C.muted,fontWeight:600,letterSpacing:0.5,textTransform:"uppercase",marginTop:2}}>{T("Sessions","Sessions")}</div>
+              </div>
+              <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:12,padding:"12px 14px",textAlign:"center"}}>
+                <div style={{fontSize:22,fontWeight:800,color:C.text}}>{g.volume>0?`${(g.volume/1000).toFixed(1)}t`:"—"}</div>
+                <div style={{fontSize:10,color:C.muted,fontWeight:600,letterSpacing:0.5,textTransform:"uppercase",marginTop:2}}>Volume</div>
+              </div>
+            </div>
+
+            {/* Cette semaine */}
+            <div style={{fontSize:10,fontWeight:700,color:C.muted,letterSpacing:1,textTransform:"uppercase",marginBottom:8}}>{T("Cette semaine","This week")}</div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:14}}>
+              <div onClick={()=>{
+                const goal=parseInt(prompt(T("Objectif de séances par semaine ?","Weekly session goal?"),weeklyGoal));
+                if(!isNaN(goal)&&goal>0) saveSettings({...settings,weeklyGoal:goal});
+              }} style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:12,padding:"12px 14px",textAlign:"center",cursor:"pointer"}}>
+                <div style={{fontSize:22,fontWeight:800,color:C.text}}>{sessionsThisWeek}<span style={{fontSize:14,color:C.muted,fontWeight:600}}>/{weeklyGoal}</span></div>
+                <div style={{fontSize:10,color:C.muted,fontWeight:600,letterSpacing:0.5,textTransform:"uppercase",marginTop:2}}>{T("Sessions","Sessions")}</div>
+                <div style={{marginTop:8,height:4,background:isDark?"#26262f":"#e8e8e2",borderRadius:2,overflow:"hidden"}}>
+                  <div style={{height:"100%",width:`${goalPct*100}%`,background:goalPct>=1?C.green:C.blue,borderRadius:2,transition:"width 0.4s ease"}}/>
                 </div>
-              ))}
+              </div>
+              <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:12,padding:"12px 14px",textAlign:"center"}}>
+                <div style={{fontSize:22,fontWeight:800,color:C.text}}>{volumeThisWeek>0?`${(volumeThisWeek/1000).toFixed(1)}t`:"—"}</div>
+                <div style={{fontSize:10,color:C.muted,fontWeight:600,letterSpacing:0.5,textTransform:"uppercase",marginTop:2}}>Volume</div>
+              </div>
             </div>
 
             {/* 3 semaines même taille */}
@@ -866,13 +893,48 @@ export default function IronLogPro() {
                 />
                 <div style={{fontSize:12,color:C.muted,marginTop:4,textTransform:"capitalize"}}>{fmtDate(selectedDate,lang)}</div>
                 {session.startedAt&&session.closedAt&&session.duration&&(
-                  <div style={{fontSize:12,color:C.green,fontWeight:700,marginTop:4}}>
-                    {fmtTime(session.startedAt)} → {fmtTime(session.closedAt)} · {session.duration}
+                  <div style={{marginTop:6}}>
+                    <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+                      <div style={{display:"flex",alignItems:"center",gap:4}}>
+                        <span style={{fontSize:11,color:C.muted}}>{T("Début","Start")}</span>
+                        <input type="time" value={fmtTime(session.startedAt)} onChange={e=>{
+                          const [h,m]=e.target.value.split(":");
+                          const d=new Date(session.startedAt);
+                          d.setHours(parseInt(h),parseInt(m),0);
+                          const startedAt=d.toISOString();
+                          const endD=new Date(session.closedAt);
+                          const mins=Math.round((endD-d)/60000);
+                          const duration=mins>=60?`${Math.floor(mins/60)}h${String(mins%60).padStart(2,"0")}`:`${mins} min`;
+                          updateSession({startedAt,duration});
+                        }} style={{...inp,width:90,fontSize:12,padding:"4px 8px"}}/>
+                      </div>
+                      <span style={{fontSize:12,color:C.muted}}>→</span>
+                      <div style={{display:"flex",alignItems:"center",gap:4}}>
+                        <span style={{fontSize:11,color:C.muted}}>{T("Fin","End")}</span>
+                        <input type="time" value={fmtTime(session.closedAt)} onChange={e=>{
+                          const [h,m]=e.target.value.split(":");
+                          const d=new Date(session.closedAt);
+                          d.setHours(parseInt(h),parseInt(m),0);
+                          const closedAt=d.toISOString();
+                          const startD=new Date(session.startedAt);
+                          const mins=Math.round((d-startD)/60000);
+                          const duration=mins>=60?`${Math.floor(mins/60)}h${String(mins%60).padStart(2,"0")}`:`${mins} min`;
+                          updateSession({closedAt,duration});
+                        }} style={{...inp,width:90,fontSize:12,padding:"4px 8px"}}/>
+                      </div>
+                      <span style={{fontSize:12,fontWeight:700,color:C.green}}>· {session.duration}</span>
+                    </div>
                   </div>
                 )}
                 {session.startedAt&&!session.closedAt&&(
-                  <div style={{fontSize:12,color:C.orange,fontWeight:700,marginTop:4}}>
-                    {T("Démarrée à","Started at")} {fmtTime(session.startedAt)}
+                  <div style={{display:"flex",alignItems:"center",gap:6,marginTop:6}}>
+                    <span style={{fontSize:11,color:C.muted}}>{T("Démarrée à","Started at")}</span>
+                    <input type="time" value={fmtTime(session.startedAt)} onChange={e=>{
+                      const [h,m]=e.target.value.split(":");
+                      const d=new Date(session.startedAt);
+                      d.setHours(parseInt(h),parseInt(m),0);
+                      updateSession({startedAt:d.toISOString()});
+                    }} style={{...inp,width:90,fontSize:12,padding:"4px 8px"}}/>
                   </div>
                 )}
               </div>
@@ -1202,16 +1264,62 @@ export default function IronLogPro() {
         <div style={{padding:"14px 16px"}}>
           {!statsEx?(
             <>
-              <div style={{fontSize:13,color:C.muted,marginBottom:12}}>{T("Sélectionne un exercice pour voir sa progression","Select an exercise to track")}</div>
-              {library.map(ex=>{const pts=getExStats(ex.id);if(pts.length===0)return null;const pr=Math.max(...pts.map(p=>p.pr));return(
-                <div key={ex.id} onClick={()=>setStatsEx(ex)} style={{...card,cursor:"pointer"}}>
-                  <div style={{padding:"12px 16px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-                    <div><div style={{fontWeight:700,fontSize:14}}>{ex.name}</div><div style={{fontSize:12,color:C.muted,marginTop:2}}>{pts.length} {T("session(s)","session(s)")} · PR {pr} {unit}</div></div>
-                    <Sparkline data={pts.map(p=>({value:p.pr}))} color={C.blue}/>
-                  </div>
+              {/* 3 filter buttons */}
+              <div style={{display:"flex",gap:8,marginBottom:14,alignItems:"center"}}>
+                <button onClick={()=>setStatsFilter("all")} style={pill(statsFilter==="all")}>{T("Tous","All")}</button>
+                <button onClick={()=>setStatsFilter("favorites")} style={pill(statsFilter==="favorites",C.orange)}>⭐ {T("Favoris","Favorites")}</button>
+                {/* Muscle dropdown */}
+                <div style={{position:"relative"}}>
+                  <button onClick={()=>{setStatsFilter("muscle");setStatsMuscleOpen(!statsMuscleOpen);}} style={{...pill(statsFilter==="muscle",C.green),display:"flex",alignItems:"center",gap:4}}>
+                    {statsFilter==="muscle"?statsMuscle:T("Muscle","Muscle")} ▾
+                  </button>
+                  {statsMuscleOpen&&(
+                    <div style={{position:"absolute",top:"110%",left:0,background:C.card,border:`1px solid ${C.border}`,borderRadius:10,zIndex:50,minWidth:160,boxShadow:"0 4px 20px rgba(0,0,0,0.15)"}}>
+                      {CATEGORIES.map(cat=>(
+                        <div key={cat} onClick={()=>{setStatsMuscle(cat);setStatsFilter("muscle");setStatsMuscleOpen(false);}}
+                          style={{padding:"10px 14px",fontSize:13,fontWeight:600,color:statsMuscle===cat?C.green:C.text,background:statsMuscle===cat?C.green+"12":"transparent",cursor:"pointer",borderBottom:`1px solid ${C.border}`}}>
+                          {cat}
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
-              );})}
-              {library.every(ex=>getExStats(ex.id).length===0)&&<div style={{textAlign:"center",padding:48,color:C.muted}}>{T("Enregistre des performances pour voir ta progression","Record workouts to see your progress")}</div>}
+              </div>
+
+              {/* Exercise list filtered */}
+              {(()=>{
+                const favorites=settings.favorites||[];
+                const filtered=library.filter(ex=>{
+                  const pts=getExStats(ex.id);
+                  if(pts.length===0) return false;
+                  if(statsFilter==="favorites") return favorites.includes(ex.id);
+                  if(statsFilter==="muscle") return ex.category===statsMuscle;
+                  return true;
+                });
+                if(filtered.length===0) return <div style={{textAlign:"center",padding:48,color:C.muted,fontSize:13}}>{statsFilter==="favorites"?T("Aucun favori — appuie sur ⭐ pour en ajouter","No favorites — tap ⭐ to add"):T("Aucune donnée pour ce groupe musculaire","No data for this muscle group")}</div>;
+                return filtered.map(ex=>{
+                  const pts=getExStats(ex.id);
+                  const pr=Math.max(...pts.map(p=>p.pr));
+                  const isFav=favorites.includes(ex.id);
+                  return (
+                    <div key={ex.id} style={card}>
+                      <div style={{padding:"12px 16px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+                        <div style={{flex:1,cursor:"pointer"}} onClick={()=>setStatsEx(ex)}>
+                          <div style={{fontWeight:700,fontSize:14}}>{ex.name}</div>
+                          <div style={{fontSize:12,color:C.muted,marginTop:2}}>{pts.length} {T("session(s)","session(s)")} · PR {pr} {unit}</div>
+                        </div>
+                        <div style={{display:"flex",alignItems:"center",gap:10}}>
+                          <button onClick={()=>{
+                            const favs=favorites.includes(ex.id)?favorites.filter(f=>f!==ex.id):[...favorites,ex.id];
+                            saveSettings({...settings,favorites:favs});
+                          }} style={{background:"none",border:"none",fontSize:18,cursor:"pointer",opacity:isFav?1:0.3}}>⭐</button>
+                          <div style={{cursor:"pointer"}} onClick={()=>setStatsEx(ex)}><Sparkline data={pts.map(p=>({value:p.pr}))} color={C.blue}/></div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                });
+              })()}
             </>
           ):(
             <ExStats ex={statsEx} pts={getExStats(statsEx.id)} onBack={()=>setStatsEx(null)} C={C} pill={pill} tag={tag} unit={unit} lang={lang} T={T} TL={TL} fmtShort={fmtShort} sessions={sessions}/>
