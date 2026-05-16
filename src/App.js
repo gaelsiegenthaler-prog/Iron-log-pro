@@ -617,7 +617,7 @@ export default function IronLogPro() {
         const prevWeek=getWeek(-1);
         const nextWeek=getWeek(1);
 
-        const WeekRow = ({days, label}) => (
+        const WeekRow = ({days, label, small=false}) => (
           <div style={{marginBottom:0}}>
             {label&&<div style={{fontSize:9,fontWeight:700,color:C.muted,textTransform:"uppercase",letterSpacing:0.5,marginBottom:6,paddingLeft:2}}>{label}</div>}
             <div style={{display:"flex",gap:4}}>
@@ -629,21 +629,25 @@ export default function IronLogPro() {
                 const isToday=d===today();
                 const isPast=d<today();
                 const dayName=new Date(d+"T00:00:00").toLocaleDateString(lang==="en"?"en-US":"fr-FR",{weekday:"short"}).slice(0,2).toUpperCase();
+                const size=small?24:32;
+                const dotSize=small?7:12;
+                const dotSizePlanned=small?6:10;
+                const dotSizeToday=small?5:8;
                 const bgColor = done?C.green+"33":inProgress?C.red+"33":planned?C.orange+"33":isToday?C.blue+"22":"transparent";
                 const borderColor = done?C.green:inProgress?C.red:planned?C.orange:isToday?C.blue:isPast?C.border:C.border+"55";
                 const labelColor = done?C.green:inProgress?C.red:planned?C.orange:isToday?C.blue:C.muted;
                 return (
                   <div key={d} onClick={()=>{setSelectedDate(d);setView("session");}}
-                    style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:3,cursor:"pointer"}}>
-                    <div style={{fontSize:9,fontWeight:700,color:labelColor}}>{dayName}</div>
-                    <div style={{width:32,height:32,borderRadius:"50%",background:bgColor,border:`2px solid ${borderColor}`,display:"flex",alignItems:"center",justifyContent:"center",opacity:!done&&!planned&&!inProgress&&isPast&&!isToday?0.35:1}}>
-                      {done&&<div style={{width:12,height:12,borderRadius:"50%",background:C.green}}/>}
-                      {inProgress&&<div style={{width:12,height:12,borderRadius:"50%",background:C.red}}/>}
-                      {planned&&<div style={{width:10,height:10,borderRadius:"50%",background:C.orange}}/>}
-                      {!done&&!inProgress&&!planned&&isToday&&<div style={{width:8,height:8,borderRadius:"50%",background:C.blue}}/>}
+                    style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:3,cursor:"pointer",opacity:small?0.75:1}}>
+                    <div style={{fontSize:small?8:9,fontWeight:700,color:labelColor}}>{dayName}</div>
+                    <div style={{width:size,height:size,borderRadius:"50%",background:bgColor,border:`2px solid ${borderColor}`,display:"flex",alignItems:"center",justifyContent:"center",opacity:!done&&!planned&&!inProgress&&isPast&&!isToday?0.35:1}}>
+                      {done&&<div style={{width:dotSize,height:dotSize,borderRadius:"50%",background:C.green}}/>}
+                      {inProgress&&<div style={{width:dotSize,height:dotSize,borderRadius:"50%",background:C.red}}/>}
+                      {planned&&<div style={{width:dotSizePlanned,height:dotSizePlanned,borderRadius:"50%",background:C.orange}}/>}
+                      {!done&&!inProgress&&!planned&&isToday&&<div style={{width:dotSizeToday,height:dotSizeToday,borderRadius:"50%",background:C.blue}}/>}
                     </div>
-                    {done&&s.sessionName&&<div style={{fontSize:7,color:C.green,fontWeight:700,textAlign:"center",maxWidth:34,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{s.sessionName}</div>}
-                    {planned&&s.plannedName&&<div style={{fontSize:7,color:C.orange,fontWeight:700,textAlign:"center",maxWidth:34,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{s.plannedName}</div>}
+                    {!small&&done&&s.sessionName&&<div style={{fontSize:7,color:C.green,fontWeight:700,textAlign:"center",maxWidth:34,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{s.sessionName}</div>}
+                    {!small&&planned&&s.plannedName&&<div style={{fontSize:7,color:C.orange,fontWeight:700,textAlign:"center",maxWidth:34,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{s.plannedName}</div>}
                   </div>
                 );
               })}
@@ -693,11 +697,11 @@ export default function IronLogPro() {
 
             {/* 3 semaines même taille */}
             <div style={{...card,padding:"14px 16px",marginBottom:14}}>
-              <WeekRow days={prevWeek} label={T("Semaine passée","Last week")}/>
+              <WeekRow days={prevWeek} label={T("Semaine passée","Last week")} small={true}/>
               <div style={{borderTop:`1px solid ${C.border}`,margin:"10px 0"}}/>
               <WeekRow days={wdays} label={T("Cette semaine","This week")}/>
               <div style={{borderTop:`1px solid ${C.border}`,margin:"10px 0"}}/>
-              <WeekRow days={nextWeek} label={T("Semaine à venir","Next week")}/>
+              <WeekRow days={nextWeek} label={T("Semaine à venir","Next week")} small={true}/>
             </div>
 
             {!activeProgram&&(
