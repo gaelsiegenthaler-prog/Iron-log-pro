@@ -616,8 +616,6 @@ export default function IronLogPro() {
         const wdays=weekDays();
         const prevWeek=getWeek(-1);
         const nextWeek=getWeek(1);
-        const sessionsThisWeek=wdays.filter(d=>sessions[d]?.closed).length;
-        const lastClosed=Object.entries(sessions).filter(([,s])=>s.closed).sort(([a],[b])=>a>b?-1:1)[0];
 
         const WeekRow = ({days, label}) => (
           <div style={{marginBottom:0}}>
