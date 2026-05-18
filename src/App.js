@@ -997,27 +997,94 @@ export default function IronLogPro() {
             </div>
           )}
 
-          {session.exercises.map((ex,ei)=>{
+          {(()=>{
+            const [dragIdx, setDragIdx] = useState(null);
+            const [dragOverIdx, setDragOverIdx] = useState(null);
+            const dragItem = useRef(null);
+            const dragOverItem = useRef(null);
+            const touchStartY = useRef(null);
+            const touchStartIdx = useRef(null);
+            const cardRefs = useRef([]);
+
+            const handleDragStart = (i) => { dragItem.current=i; setDragIdx(i); };
+            const handleDragEnter = (i) => { dragOverItem.current=i; setDragOverIdx(i); };
+            const handleDragEnd = () => {
+              if(dragItem.current!==null&&dragOverItem.current!==null&&dragItem.current!==dragOverItem.current){
+                const exs=[...session.exercises];
+                const dragged=exs.splice(dragItem.current,1)[0];
+                exs.splice(dragOverItem.current,0,dragged);
+                updateSession({exercises:exs});
+              }
+              dragItem.current=null; dragOverItem.current=null;
+              setDragIdx(null); setDragOverIdx(null);
+            };
+
+            // Touch drag
+            const handleTouchStart = (e,i) => {
+              touchStartY.current=e.touches[0].clientY;
+              touchStartIdx.current=i;
+              dragItem.current=i;
+              setDragIdx(i);
+            };
+            const handleTouchMove = (e) => {
+              e.preventDefault();
+              const y=e.touches[0].clientY;
+              const container=cardRefs.current[0]?.parentElement;
+              if(!container) return;
+              const children=Array.from(container.children);
+              let overIdx=touchStartIdx.current;
+              children.forEach((child,i)=>{
+                const rect=child.getBoundingClientRect();
+                if(y>rect.top&&y<rect.bottom) overIdx=i;
+              });
+              if(overIdx!==dragOverItem.current){
+                dragOverItem.current=overIdx;
+                setDragOverIdx(overIdx);
+              }
+            };
+            const handleTouchEnd = () => { handleDragEnd(); };
+
+            return session.exercises.map((ex,ei)=>{
             const pr=calcPR(ex.sets);
             const vol=calcVolume(ex.sets,ex.name);
             const isDb=ex.doubleWeight!==undefined ? ex.doubleWeight : isHalteres(ex.name);
             const exKey=ex.id+"-"+ei;
             const collapsed=collapsedExercises[exKey]||false;
             const setCollapsed=(val)=>setCollapsedExercises(prev=>({...prev,[exKey]:val}));
-            const moveEx=(dir)=>{
-              const exs=[...session.exercises]; const swap=ei+dir;
-              if(swap<0||swap>=exs.length) return;
-              [exs[ei],exs[swap]]=[exs[swap],exs[ei]];
-              updateSession({exercises:exs});
-            };
+            const isDragging=dragIdx===ei;
+            const isDragOver=dragOverIdx===ei&&dragIdx!==ei;
+
             return (
-              <div key={ei} style={card}>
+              <div key={ei}
+                ref={el=>cardRefs.current[ei]=el}
+                draggable
+                onDragStart={()=>handleDragStart(ei)}
+                onDragEnter={()=>handleDragEnter(ei)}
+                onDragEnd={handleDragEnd}
+                onDragOver={e=>e.preventDefault()}
+                style={{...card,
+                  opacity:isDragging?0.4:1,
+                  transform:isDragOver?"translateY(-3px)":"none",
+                  borderColor:isDragOver?C.blue:C.border,
+                  transition:"transform 0.15s ease, border-color 0.15s ease, opacity 0.15s ease",
+                  cursor:"default"
+                }}>
                 <div style={{padding:"12px 16px",borderBottom:collapsed?`none`:`1px solid ${C.border}`,display:"flex",alignItems:"center",gap:8}}>
-                  {/* Number + reorder */}
-                  <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:2,flexShrink:0}}>
-                    <button onClick={()=>moveEx(-1)} disabled={ei===0} style={{background:"none",border:"none",color:ei===0?C.border:C.muted,cursor:ei===0?"default":"pointer",fontSize:12,padding:0,lineHeight:1}}>▲</button>
-                    <div style={{width:22,height:22,borderRadius:"50%",background:C.blue+"18",display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:800,color:C.blue}}>{ei+1}</div>
-                    <button onClick={()=>moveEx(1)} disabled={ei===session.exercises.length-1} style={{background:"none",border:"none",color:ei===session.exercises.length-1?C.border:C.muted,cursor:ei===session.exercises.length-1?"default":"pointer",fontSize:12,padding:0,lineHeight:1}}>▼</button>
+                  {/* Drag handle */}
+                  <div
+                    onTouchStart={e=>handleTouchStart(e,ei)}
+                    onTouchMove={handleTouchMove}
+                    onTouchEnd={handleTouchEnd}
+                    style={{display:"flex",flexDirection:"column",alignItems:"center",gap:2,flexShrink:0,cursor:"grab",padding:"4px 6px",touchAction:"none"}}>
+                    <div style={{display:"flex",flexDirection:"column",gap:3}}>
+                      {[0,1,2].map(i=>(
+                        <div key={i} style={{display:"flex",gap:3}}>
+                          <div style={{width:3,height:3,borderRadius:"50%",background:C.muted}}/>
+                          <div style={{width:3,height:3,borderRadius:"50%",background:C.muted}}/>
+                        </div>
+                      ))}
+                    </div>
+                    <div style={{width:18,height:18,borderRadius:"50%",background:C.blue+"18",display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:800,color:C.blue,marginTop:3}}>{ei+1}</div>
                   </div>
                   {/* Name + tags */}
                   <div style={{flex:1,minWidth:0}} onClick={()=>setCollapsed(!collapsed)}>
@@ -1071,7 +1138,7 @@ export default function IronLogPro() {
                 )}
               </div>
             );
-          })}
+          });})()}
 
           {session.exercises.length>0&&(
             <button onClick={()=>addExToSession} style={{display:"none"}}/>
