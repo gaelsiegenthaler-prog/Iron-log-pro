@@ -230,6 +230,11 @@ export default function IronLogPro() {
   const [closeName, setCloseName] = useState("");
   const [sessionView, setSessionView] = useState("calendar");
   const [collapsedExercises, setCollapsedExercises] = useState({});
+  const [dragIdx, setDragIdx] = useState(null);
+  const [dragOverIdx, setDragOverIdx] = useState(null);
+  const dragItem = useRef(null);
+  const dragOverItem = useRef(null);
+  const cardRefs = useRef([]);
   const [editingEx, setEditingEx] = useState(null);
   const [planModal, setPlanModal] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState(false);
@@ -998,107 +1003,71 @@ export default function IronLogPro() {
           )}
 
           {(()=>{
-            const [dragIdx, setDragIdx] = useState(null);
-            const [dragOverIdx, setDragOverIdx] = useState(null);
-            const dragItem = useRef(null);
-            const dragOverItem = useRef(null);
-            const touchStartY = useRef(null);
-            const touchStartIdx = useRef(null);
-            const cardRefs = useRef([]);
-
-            const handleDragStart = (i) => { dragItem.current=i; setDragIdx(i); };
-            const handleDragEnter = (i) => { dragOverItem.current=i; setDragOverIdx(i); };
-            const handleDragEnd = () => {
+            const handleDragStart=(i)=>{dragItem.current=i;setDragIdx(i);};
+            const handleDragEnter=(i)=>{dragOverItem.current=i;setDragOverIdx(i);};
+            const handleDragEnd=()=>{
               if(dragItem.current!==null&&dragOverItem.current!==null&&dragItem.current!==dragOverItem.current){
                 const exs=[...session.exercises];
                 const dragged=exs.splice(dragItem.current,1)[0];
                 exs.splice(dragOverItem.current,0,dragged);
                 updateSession({exercises:exs});
               }
-              dragItem.current=null; dragOverItem.current=null;
-              setDragIdx(null); setDragOverIdx(null);
+              dragItem.current=null;dragOverItem.current=null;
+              setDragIdx(null);setDragOverIdx(null);
             };
-
-            // Touch drag
-            const handleTouchStart = (e,i) => {
-              touchStartY.current=e.touches[0].clientY;
-              touchStartIdx.current=i;
-              dragItem.current=i;
-              setDragIdx(i);
-            };
-            const handleTouchMove = (e) => {
+            const handleTouchStart=(e,i)=>{dragItem.current=i;setDragIdx(i);};
+            const handleTouchMove=(e)=>{
               e.preventDefault();
               const y=e.touches[0].clientY;
-              const container=cardRefs.current[0]?.parentElement;
-              if(!container) return;
-              const children=Array.from(container.children);
-              let overIdx=touchStartIdx.current;
-              children.forEach((child,i)=>{
+              let overIdx=dragItem.current;
+              cardRefs.current.forEach((child,i)=>{
+                if(!child) return;
                 const rect=child.getBoundingClientRect();
                 if(y>rect.top&&y<rect.bottom) overIdx=i;
               });
-              if(overIdx!==dragOverItem.current){
-                dragOverItem.current=overIdx;
-                setDragOverIdx(overIdx);
-              }
+              if(overIdx!==dragOverItem.current){dragOverItem.current=overIdx;setDragOverIdx(overIdx);}
             };
-            const handleTouchEnd = () => { handleDragEnd(); };
+            const handleTouchEnd=()=>handleDragEnd();
 
             return session.exercises.map((ex,ei)=>{
-            const pr=calcPR(ex.sets);
-            const vol=calcVolume(ex.sets,ex.name);
-            const isDb=ex.doubleWeight!==undefined ? ex.doubleWeight : isHalteres(ex.name);
-            const exKey=ex.id+"-"+ei;
-            const collapsed=collapsedExercises[exKey]||false;
-            const setCollapsed=(val)=>setCollapsedExercises(prev=>({...prev,[exKey]:val}));
-            const isDragging=dragIdx===ei;
-            const isDragOver=dragOverIdx===ei&&dragIdx!==ei;
-
-            return (
-              <div key={ei}
-                ref={el=>cardRefs.current[ei]=el}
-                draggable
-                onDragStart={()=>handleDragStart(ei)}
-                onDragEnter={()=>handleDragEnter(ei)}
-                onDragEnd={handleDragEnd}
-                onDragOver={e=>e.preventDefault()}
-                style={{...card,
-                  opacity:isDragging?0.4:1,
-                  transform:isDragOver?"translateY(-3px)":"none",
-                  borderColor:isDragOver?C.blue:C.border,
-                  transition:"transform 0.15s ease, border-color 0.15s ease, opacity 0.15s ease",
-                  cursor:"default"
-                }}>
-                <div style={{padding:"12px 16px",borderBottom:collapsed?`none`:`1px solid ${C.border}`,display:"flex",alignItems:"center",gap:8}}>
-                  {/* Drag handle */}
-                  <div
-                    onTouchStart={e=>handleTouchStart(e,ei)}
-                    onTouchMove={handleTouchMove}
-                    onTouchEnd={handleTouchEnd}
-                    style={{display:"flex",flexDirection:"column",alignItems:"center",gap:2,flexShrink:0,cursor:"grab",padding:"4px 6px",touchAction:"none"}}>
-                    <div style={{display:"flex",flexDirection:"column",gap:3}}>
+              const pr=calcPR(ex.sets);
+              const vol=calcVolume(ex.sets,ex.name);
+              const isDb=ex.doubleWeight!==undefined?ex.doubleWeight:isHalteres(ex.name);
+              const exKey=ex.id+"-"+ei;
+              const collapsed=collapsedExercises[exKey]||false;
+              const setCollapsed=(val)=>setCollapsedExercises(prev=>({...prev,[exKey]:val}));
+              const isDragging=dragIdx===ei;
+              const isDragOver=dragOverIdx===ei&&dragIdx!==ei;
+              return (
+                <div key={ei}
+                  ref={el=>cardRefs.current[ei]=el}
+                  draggable
+                  onDragStart={()=>handleDragStart(ei)}
+                  onDragEnter={()=>handleDragEnter(ei)}
+                  onDragEnd={handleDragEnd}
+                  onDragOver={e=>e.preventDefault()}
+                  style={{...card,opacity:isDragging?0.4:1,transform:isDragOver?"translateY(-3px)":"none",borderColor:isDragOver?C.blue:C.border,transition:"transform 0.15s,border-color 0.15s,opacity 0.15s",cursor:"default"}}>
+                  <div style={{padding:"12px 16px",borderBottom:collapsed?`none`:`1px solid ${C.border}`,display:"flex",alignItems:"center",gap:8}}>
+                    <div onTouchStart={e=>handleTouchStart(e,ei)} onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd}
+                      style={{display:"flex",flexDirection:"column",alignItems:"center",gap:3,flexShrink:0,cursor:"grab",padding:"4px 6px",touchAction:"none"}}>
                       {[0,1,2].map(i=>(
                         <div key={i} style={{display:"flex",gap:3}}>
                           <div style={{width:3,height:3,borderRadius:"50%",background:C.muted}}/>
                           <div style={{width:3,height:3,borderRadius:"50%",background:C.muted}}/>
                         </div>
                       ))}
+                      <div style={{width:18,height:18,borderRadius:"50%",background:C.blue+"18",display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:800,color:C.blue,marginTop:3}}>{ei+1}</div>
                     </div>
-                    <div style={{width:18,height:18,borderRadius:"50%",background:C.blue+"18",display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:800,color:C.blue,marginTop:3}}>{ei+1}</div>
-                  </div>
-                  {/* Name + tags */}
-                  <div style={{flex:1,minWidth:0}} onClick={()=>setCollapsed(!collapsed)}>
-                    <div style={{display:"flex",alignItems:"center",gap:6}}>
-                      <div style={{fontWeight:700,fontSize:15,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{ex.name}</div>
-                      {isDb&&<span style={{...tag(C.orange),fontSize:9,flexShrink:0}}>×2</span>}
+                    <div style={{flex:1,minWidth:0}} onClick={()=>setCollapsed(!collapsed)}>
+                      <div style={{display:"flex",alignItems:"center",gap:6}}>
+                        <div style={{fontWeight:700,fontSize:15,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{ex.name}</div>
+                        {isDb&&<span style={{...tag(C.orange),fontSize:9,flexShrink:0}}>×2</span>}
+                      </div>
+                      <div style={{display:"flex",gap:5,marginTop:4}}><span style={tag(TYPE_COLORS[ex.type]||C.blue)}>{TL[ex.type]||ex.type}</span><span style={tag("#888")}>{ex.category}</span></div>
                     </div>
-                    <div style={{display:"flex",gap:5,marginTop:4}}><span style={tag(TYPE_COLORS[ex.type]||C.blue)}>{TL[ex.type]||ex.type}</span><span style={tag("#888")}>{ex.category}</span></div>
+                    <button onClick={()=>setCollapsed(!collapsed)} style={{background:"none",border:"none",color:C.muted,fontSize:16,cursor:"pointer",padding:"0 4px",transform:collapsed?"rotate(-90deg)":"rotate(0deg)",transition:"transform 0.2s"}}>▾</button>
+                    <button onClick={()=>removeEx(ei)} style={{background:"none",border:"none",color:C.muted,fontSize:20,cursor:"pointer",padding:"0 2px"}}>×</button>
                   </div>
-                  {/* Collapse toggle */}
-                  <button onClick={()=>setCollapsed(!collapsed)} style={{background:"none",border:"none",color:C.muted,fontSize:16,cursor:"pointer",padding:"0 4px",transform:collapsed?"rotate(-90deg)":"rotate(0deg)",transition:"transform 0.2s"}}>▾</button>
-                  {/* Remove */}
-                  <button onClick={()=>removeEx(ei)} style={{background:"none",border:"none",color:C.muted,fontSize:20,cursor:"pointer",padding:"0 2px"}}>×</button>
-                </div>
                 {!collapsed&&(
                 <div style={{padding:"12px 16px"}}>
                   <div style={{display:"grid",gridTemplateColumns:"28px 1fr 1fr 32px",gap:6,marginBottom:4,fontSize:10,color:C.muted,fontWeight:700,letterSpacing:1,textTransform:"uppercase"}}>
