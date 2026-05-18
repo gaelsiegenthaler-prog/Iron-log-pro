@@ -1684,6 +1684,86 @@ export default function IronLogPro() {
   );
 }
 
+function InteractiveChart({ data, color, unit, C, T, metric }) {
+  const [activeIdx, setActiveIdx] = useState(null);
+  const svgRef = useRef(null);
+  const W=320, H=80, PAD=8;
+  const vals=data.map(d=>d.value);
+  const min=Math.min(...vals), max=Math.max(...vals), range=max-min||1;
+  const pts=data.map((d,i)=>{
+    const x=PAD+(i/(data.length-1))*(W-PAD*2);
+    const y=H-PAD-((d.value-min)/range)*(H-PAD*2);
+    return {x,y,d};
+  });
+
+  const getIdxFromX = (clientX, rect) => {
+    const x = clientX - rect.left;
+    const relX = (x / rect.width) * W;
+    let closest=0, minDist=Infinity;
+    pts.forEach((p,i)=>{ const dist=Math.abs(p.x-relX); if(dist<minDist){minDist=dist;closest=i;} });
+    return closest;
+  };
+
+  const handleTouch = (e) => {
+    e.preventDefault();
+    const rect=svgRef.current.getBoundingClientRect();
+    const touch=e.touches[0]||e.changedTouches[0];
+    setActiveIdx(getIdxFromX(touch.clientX, rect));
+  };
+  const handleMouse = (e) => {
+    const rect=svgRef.current.getBoundingClientRect();
+    setActiveIdx(getIdxFromX(e.clientX, rect));
+  };
+
+  const active = activeIdx!=null ? pts[activeIdx] : null;
+
+  return (
+    <div style={{position:"relative",userSelect:"none"}}>
+      {/* Tooltip */}
+      <div style={{height:44,display:"flex",alignItems:"center",justifyContent:"center",marginBottom:4}}>
+        {active ? (
+          <div style={{background:C.card,border:`1px solid ${color}44`,borderRadius:10,padding:"6px 14px",textAlign:"center",boxShadow:`0 2px 12px ${color}22`}}>
+            <div style={{fontSize:15,fontWeight:800,color:color}}>{active.d.value.toLocaleString("fr-FR")} {unit}</div>
+            <div style={{fontSize:11,color:C.muted,marginTop:1,textTransform:"capitalize"}}>{active.d.label}</div>
+            {metric==="pr"&&<div style={{fontSize:10,color:C.muted}}>Vol : {active.d.vol.toLocaleString("fr-FR")} {unit}</div>}
+            {metric==="vol"&&<div style={{fontSize:10,color:C.muted}}>PR : {active.d.pr} {unit}</div>}
+          </div>
+        ) : (
+          <div style={{fontSize:12,color:C.muted}}>{T("Glisse pour explorer","Slide to explore")}</div>
+        )}
+      </div>
+
+      <svg ref={svgRef} width="100%" viewBox={`0 0 ${W} ${H}`}
+        style={{overflow:"visible",cursor:"crosshair",display:"block"}}
+        onTouchStart={handleTouch} onTouchMove={handleTouch} onTouchEnd={()=>setActiveIdx(null)}
+        onMouseMove={handleMouse} onMouseLeave={()=>setActiveIdx(null)}>
+
+        {/* Area fill */}
+        <defs>
+          <linearGradient id="chartGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={color} stopOpacity="0.15"/>
+            <stop offset="100%" stopColor={color} stopOpacity="0"/>
+          </linearGradient>
+        </defs>
+        <path d={`M ${pts.map(p=>`${p.x},${p.y}`).join(" L ")} L ${pts[pts.length-1].x},${H} L ${pts[0].x},${H} Z`} fill="url(#chartGrad)"/>
+
+        {/* Line */}
+        <polyline points={pts.map(p=>`${p.x},${p.y}`).join(" ")} fill="none" stroke={color} strokeWidth={2.5} strokeLinejoin="round" strokeLinecap="round"/>
+
+        {/* Cursor line */}
+        {active&&<line x1={active.x} y1={PAD-4} x2={active.x} y2={H} stroke={color} strokeWidth={1.5} strokeDasharray="4 3" opacity={0.5}/>}
+
+        {/* Dots */}
+        {pts.map((p,i)=>(
+          <circle key={i} cx={p.x} cy={p.y} r={activeIdx===i?6:3.5}
+            fill={activeIdx===i?color:C.card} stroke={color} strokeWidth={activeIdx===i?2.5:2}
+            style={{transition:"r 0.15s ease"}}/>
+        ))}
+      </svg>
+    </div>
+  );
+}
+
 function ExStats({ ex, pts, onBack, C, pill, tag, unit, lang, T, TL, fmtShort, sessions }) {
   const [metric,setMetric]=useState("pr");
   const [showAllPR,setShowAllPR]=useState(false);
@@ -1704,15 +1784,22 @@ function ExStats({ ex, pts, onBack, C, pill, tag, unit, lang, T, TL, fmtShort, s
     });
   });
 
-  // PR Poids = max weight
-  const prWeight = allSets.length>0 ? allSets.reduce((best,s)=>s.weight>best.weight?s:best,allSets[0]) : null;
+  // PR Poids = série avec le poids le plus lourd (si égalité → plus de reps)
+  const prWeight = allSets.length>0 ? allSets.reduce((best,s)=>{
+    if(s.weight>best.weight) return s;
+    if(s.weight===best.weight&&s.reps>best.reps) return s;
+    return best;
+  }, allSets[0]) : null;
   // PR Volume/série = max reps*weight
   const prVolSerie = allSets.length>0 ? allSets.reduce((best,s)=>s.vol>best.vol?s:best,allSets[0]) : null;
-  // PR Reps = max reps
-  const prReps = allSets.length>0 ? allSets.reduce((best,s)=>s.reps>best.reps?s:best,allSets[0]) : null;
+  // PR Reps = max reps (si égalité → plus grand poids)
+  const prReps = allSets.length>0 ? allSets.reduce((best,s)=>{
+    if(s.reps>best.reps) return s;
+    if(s.reps===best.reps&&s.weight>best.weight) return s;
+    return best;
+  }, allSets[0]) : null;
 
   const pr=pts.length>0?Math.max(...pts.map(p=>p.pr)):0;
-  const bestVol=pts.length>0?Math.max(...pts.map(p=>p.vol)):0;
   const prHistory=[];let runningPR=0;
   pts.forEach(p=>{if(p.pr>runningPR){runningPR=p.pr;prHistory.push({date:p.date,pr:p.pr,prev:prHistory.length>0?prHistory[prHistory.length-1].pr:0});}});
   const displayPR=showAllPR?[...prHistory].reverse():[...prHistory].reverse().slice(0,5);
@@ -1755,14 +1842,23 @@ function ExStats({ ex, pts, onBack, C, pill, tag, unit, lang, T, TL, fmtShort, s
         ))}
       </div>
 
-      {/* Chart */}
+      {/* Interactive Chart */}
       <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:14,padding:"16px",marginBottom:14}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
           <div style={{fontWeight:700,fontSize:14}}>{T("Progression","Progress")}</div>
           <div style={{display:"flex",gap:6}}>{[{k:"pr",l:"PR"},{k:"vol",l:T("Volume","Volume")}].map(({k,l})=><button key={k} onClick={()=>setMetric(k)} style={pill(metric===k)}>{l}</button>)}</div>
         </div>
-        {pts.length>=2?<Sparkline data={pts.map(p=>({value:metric==="pr"?p.pr:p.vol}))} color={metric==="pr"?C.blue:C.green}/>:<div style={{color:C.muted,fontSize:13}}>{T("Pas assez de données","Not enough data")}</div>}
-        <div style={{marginTop:14}}>{[...pts].reverse().slice(0,5).map(p=>(<div key={p.date} style={{display:"flex",justifyContent:"space-between",padding:"7px 0",borderBottom:`1px solid ${C.border}`,fontSize:13}}><span style={{color:C.muted,textTransform:"capitalize"}}>{fmtShort(p.date,lang)}</span><span style={{fontWeight:700}}>PR {p.pr} {unit} · {p.vol.toLocaleString("fr-FR")} {unit}</span></div>))}</div>
+        {pts.length>=2
+          ? <InteractiveChart
+              data={pts.map(p=>({value:metric==="pr"?p.pr:p.vol, label:fmtShort(p.date,lang), pr:p.pr, vol:p.vol}))}
+              color={metric==="pr"?C.blue:C.green}
+              unit={unit}
+              C={C}
+              T={T}
+              metric={metric}
+            />
+          : <div style={{color:C.muted,fontSize:13}}>{T("Pas assez de données (min. 2 sessions)","Not enough data (min. 2 sessions)")}</div>
+        }
       </div>
 
       {/* PR timeline */}
