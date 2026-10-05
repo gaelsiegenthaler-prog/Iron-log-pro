@@ -322,7 +322,7 @@ export default function IronLogPro() {
   const addExToSession = (ex) => {
     const lastPerf=getLastPerf(ex.id);
     const sets=lastPerf
-      ? lastPerf.sets.map(s=>({reps:"",weight:"",targetReps:s.reps,targetWeight:s.weight,comment:""}))
+      ? lastPerf.sets.map(s=>({reps:"",weight:"",targetReps:s.reps,targetWeight:s.weight,comment:"",targetComment:s.comment||""}))
       : [{reps:"",weight:"",targetReps:"",targetWeight:"",comment:""}];
     updateSession({exercises:[...session.exercises,{...ex,sets}]});
     setAddingEx(false);
@@ -383,7 +383,7 @@ export default function IronLogPro() {
       .map(ex=>{
         const lastPerf=getLastPerf(ex.id);
         const sets=lastPerf
-          ? lastPerf.sets.map(s=>({reps:"",weight:"",targetReps:s.reps,targetWeight:s.weight,comment:""}))
+          ? lastPerf.sets.map(s=>({reps:"",weight:"",targetReps:s.reps,targetWeight:s.weight,comment:"",targetComment:s.comment||""}))
           : [{reps:"",weight:"",targetReps:"",targetWeight:"",comment:""}];
         return {...ex,sets};
       });
@@ -858,7 +858,7 @@ export default function IronLogPro() {
                                   const newExs=day.exercises.map(ex=>{
                                     const lastPerf=getLastPerf(ex.id);
                                     const sets=lastPerf
-                                      ? lastPerf.sets.map(s=>({reps:"",weight:"",targetReps:s.reps,targetWeight:s.weight,comment:""}))
+                                      ? lastPerf.sets.map(s=>({reps:"",weight:"",targetReps:s.reps,targetWeight:s.weight,comment:"",targetComment:s.comment||""}))
                                       : [{reps:"",weight:"",targetReps:"",targetWeight:"",comment:""}];
                                     return {...ex,sets};
                                   });
@@ -1078,9 +1078,16 @@ export default function IronLogPro() {
                     return (
                       <div key={si} style={{marginBottom:10}}>
                         {hasTarget&&(
-                          <div style={{display:"grid",gridTemplateColumns:"28px 1fr 1fr 32px",gap:6,marginBottom:2}}>
-                            <div/><div style={{textAlign:"center",fontSize:11,color:C.muted,fontStyle:"italic",opacity:0.7}}>{set.targetReps||""}</div>
-                            <div style={{textAlign:"center",fontSize:11,color:C.muted,fontStyle:"italic",opacity:0.7}}>{set.targetWeight?`${set.targetWeight} ${unit}`:""}</div><div/>
+                          <div style={{marginBottom:3}}>
+                            <div style={{display:"grid",gridTemplateColumns:"28px 1fr 1fr 32px",gap:6,marginBottom:2}}>
+                              <div/><div style={{textAlign:"center",fontSize:11,color:C.muted,fontStyle:"italic",opacity:0.7}}>{set.targetReps||""}</div>
+                              <div style={{textAlign:"center",fontSize:11,color:C.muted,fontStyle:"italic",opacity:0.7}}>{set.targetWeight?`${set.targetWeight} ${unit}`:""}</div><div/>
+                            </div>
+                            {set.targetComment&&(
+                              <div style={{fontSize:10,color:C.muted,fontStyle:"italic",opacity:0.6,paddingLeft:34,marginBottom:2}}>
+                                💬 {set.targetComment}
+                              </div>
+                            )}
                           </div>
                         )}
                         <div style={{display:"grid",gridTemplateColumns:"28px 1fr 1fr 32px",gap:6,alignItems:"center",marginBottom:4}}>
@@ -1199,7 +1206,7 @@ export default function IronLogPro() {
           {(programs[editingProgram.idx]?.days||[]).length===0&&<div style={{textAlign:"center",padding:"32px 20px",border:`1.5px dashed ${C.border}`,borderRadius:12,color:C.muted,fontSize:13}}>{T("Aucun jour","No days yet")}</div>}
           {(programs[editingProgram.idx]?.days||[]).map((day,di)=>(
             <div key={day.id} style={card}>
-              <div style={{padding:"12px 16px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+              <div style={{padding:"12px 16px",borderBottom:(day.exercises||[]).length>0?`1px solid ${C.border}`:"none",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
                 <div>
                   <div style={{fontWeight:700,fontSize:15}}>{T("Jour","Day")} {di+1} — {day.name}</div>
                   <div style={{fontSize:12,color:C.muted,marginTop:2}}>{(day.exercises||[]).length} {T("exercice(s)","exercise(s)")}</div>
@@ -1209,7 +1216,33 @@ export default function IronLogPro() {
                   <button onClick={()=>savePrograms(programs.map((p,i)=>i!==editingProgram.idx?p:{...p,days:p.days.filter((_,j)=>j!==di)}))} style={{background:"none",border:"1px solid #fecaca",color:C.red,borderRadius:8,padding:"5px 10px",fontSize:12,cursor:"pointer"}}>×</button>
                 </div>
               </div>
-              {(day.exercises||[]).length>0&&<div style={{padding:"8px 16px",display:"flex",gap:6,flexWrap:"wrap"}}>{day.exercises.map((ex,ei)=><span key={ei} style={{fontSize:12,background:C.sub,border:`1px solid ${C.border}`,borderRadius:6,padding:"3px 8px",color:C.muted}}>{ex.name}</span>)}</div>}
+              {/* Structured session sheet */}
+              {(day.exercises||[]).length>0&&(
+                <div style={{padding:"10px 16px"}}>
+                  {day.exercises.map((ex,ei)=>{
+                    const sets=ex.targetSets||[];
+                    return (
+                      <div key={ei} style={{display:"flex",gap:10,marginBottom:10,paddingBottom:10,borderBottom:ei<day.exercises.length-1?`1px solid ${C.border}`:"none"}}>
+                        <div style={{width:22,height:22,borderRadius:"50%",background:C.blue+"18",display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:800,color:C.blue,flexShrink:0,marginTop:2}}>{ei+1}</div>
+                        <div style={{flex:1}}>
+                          <div style={{fontWeight:700,fontSize:13,marginBottom:3}}>{ex.name}</div>
+                          {sets.length>0?(
+                            <div style={{display:"flex",flexDirection:"column",gap:2}}>
+                              {sets.map((s,si)=>(
+                                <div key={si} style={{fontSize:11,color:C.muted}}>
+                                  {T("Série","Set")} {si+1} : <span style={{fontWeight:600,color:C.text}}>{s.reps}</span> {T("reps","reps")}
+                                </div>
+                              ))}
+                            </div>
+                          ):(
+                            <div style={{fontSize:11,color:C.muted,fontStyle:"italic"}}>{T("Pas d'objectif défini","No target set")}</div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           ))}
         </div>
@@ -1224,26 +1257,54 @@ export default function IronLogPro() {
             style={{...inp,textAlign:"left",padding:"10px 14px",marginBottom:14}}/>
           <span style={sec}>{T("Exercices prévus","Planned exercises")} ({programs[editingDay.progIdx]?.days?.[editingDay.dayIdx]?.exercises?.length||0})</span>
           {(programs[editingDay.progIdx]?.days?.[editingDay.dayIdx]?.exercises||[]).map((ex,ei)=>{
-            const exList = programs[editingDay.progIdx]?.days?.[editingDay.dayIdx]?.exercises||[];
-            const moveDayEx = (dir) => {
+            const exList=programs[editingDay.progIdx]?.days?.[editingDay.dayIdx]?.exercises||[];
+            const moveDayEx=(dir)=>{
               const arr=[...exList]; const swap=ei+dir;
               if(swap<0||swap>=arr.length) return;
               [arr[ei],arr[swap]]=[arr[swap],arr[ei]];
               savePrograms(programs.map((p,i)=>i!==editingDay.progIdx?p:{...p,days:p.days.map((d,j)=>j!==editingDay.dayIdx?d:{...d,exercises:arr})}));
             };
+            const updateExTargets=(newEx)=>{
+              savePrograms(programs.map((p,i)=>i!==editingDay.progIdx?p:{...p,days:p.days.map((d,j)=>j!==editingDay.dayIdx?d:{...d,exercises:d.exercises.map((e,k)=>k!==ei?e:newEx)})}));
+            };
+            const sets=ex.targetSets||[{reps:"8-10"}];
             return (
-            <div key={ei} style={{display:"flex",alignItems:"center",gap:8,padding:"9px 12px",background:C.sub,borderRadius:10,marginBottom:6,border:`1px solid ${C.border}`}}>
-              {/* Number + reorder */}
-              <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:1,flexShrink:0}}>
-                <button onClick={()=>moveDayEx(-1)} disabled={ei===0} style={{background:"none",border:"none",color:ei===0?C.border:C.muted,cursor:ei===0?"default":"pointer",fontSize:11,padding:0,lineHeight:1}}>▲</button>
-                <div style={{width:20,height:20,borderRadius:"50%",background:C.blue+"18",display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:800,color:C.blue}}>{ei+1}</div>
-                <button onClick={()=>moveDayEx(1)} disabled={ei===exList.length-1} style={{background:"none",border:"none",color:ei===exList.length-1?C.border:C.muted,cursor:ei===exList.length-1?"default":"pointer",fontSize:11,padding:0,lineHeight:1}}>▼</button>
+            <div key={ei} style={{background:C.sub,borderRadius:10,marginBottom:8,border:`1px solid ${C.border}`,overflow:"hidden"}}>
+              {/* Header */}
+              <div style={{display:"flex",alignItems:"center",gap:8,padding:"10px 12px",borderBottom:`1px solid ${C.border}`}}>
+                <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:1,flexShrink:0}}>
+                  <button onClick={()=>moveDayEx(-1)} disabled={ei===0} style={{background:"none",border:"none",color:ei===0?C.border:C.muted,cursor:ei===0?"default":"pointer",fontSize:11,padding:0,lineHeight:1}}>▲</button>
+                  <div style={{width:20,height:20,borderRadius:"50%",background:C.blue+"18",display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:800,color:C.blue}}>{ei+1}</div>
+                  <button onClick={()=>moveDayEx(1)} disabled={ei===exList.length-1} style={{background:"none",border:"none",color:ei===exList.length-1?C.border:C.muted,cursor:ei===exList.length-1?"default":"pointer",fontSize:11,padding:0,lineHeight:1}}>▼</button>
+                </div>
+                <div style={{flex:1}}>
+                  <div style={{fontWeight:600,fontSize:13}}>{ex.name}</div>
+                  <div style={{display:"flex",gap:5,marginTop:3}}><span style={tag(TYPE_COLORS[ex.type]||C.blue)}>{TL[ex.type]}</span><span style={tag("#888")}>{ex.category}</span></div>
+                </div>
+                <button onClick={()=>savePrograms(programs.map((p,i)=>i!==editingDay.progIdx?p:{...p,days:p.days.map((d,j)=>j!==editingDay.dayIdx?d:{...d,exercises:d.exercises.filter((_,k)=>k!==ei)})}))} style={{background:"none",border:"none",color:isDark?"#444":"#ccc",fontSize:20,cursor:"pointer"}}>×</button>
               </div>
-              <div style={{flex:1}}>
-                <div style={{fontWeight:600,fontSize:13}}>{ex.name}</div>
-                <div style={{display:"flex",gap:5,marginTop:3}}><span style={tag(TYPE_COLORS[ex.type]||C.blue)}>{TL[ex.type]}</span><span style={tag("#888")}>{ex.category}</span></div>
+              {/* Sets targets */}
+              <div style={{padding:"8px 12px"}}>
+                <div style={{fontSize:10,fontWeight:700,color:C.muted,textTransform:"uppercase",letterSpacing:0.5,marginBottom:6}}>{T("Objectifs par série","Targets per set")}</div>
+                {sets.map((s,si)=>(
+                  <div key={si} style={{display:"flex",alignItems:"center",gap:6,marginBottom:5}}>
+                    <div style={{fontSize:11,color:C.muted,width:50,flexShrink:0}}>{T("Série","Set")} {si+1}</div>
+                    <input
+                      value={s.reps||""}
+                      onChange={e=>{
+                        const ns=[...sets];ns[si]={...ns[si],reps:e.target.value};
+                        updateExTargets({...ex,targetSets:ns});
+                      }}
+                      placeholder={T("ex: 8-10 ou 5","e.g. 8-10 or 5")}
+                      style={{...inp,fontSize:12,padding:"5px 8px",flex:1,textAlign:"left"}}
+                    />
+                    <button onClick={()=>{const ns=sets.filter((_,k)=>k!==si);updateExTargets({...ex,targetSets:ns.length?ns:[{reps:""}]});}} style={{background:"none",border:"none",color:isDark?"#444":"#ccc",fontSize:16,cursor:"pointer",flexShrink:0}}>×</button>
+                  </div>
+                ))}
+                <button onClick={()=>updateExTargets({...ex,targetSets:[...sets,{reps:""}]})} style={{fontSize:11,color:C.blue,background:"none",border:"none",cursor:"pointer",fontFamily:"inherit",fontWeight:700,padding:"2px 0"}}>
+                  + {T("Ajouter une série","Add a set")}
+                </button>
               </div>
-              <button onClick={()=>savePrograms(programs.map((p,i)=>i!==editingDay.progIdx?p:{...p,days:p.days.map((d,j)=>j!==editingDay.dayIdx?d:{...d,exercises:d.exercises.filter((_,k)=>k!==ei)})}))} style={{background:"none",border:"none",color:isDark?"#444":"#ccc",fontSize:20,cursor:"pointer"}}>×</button>
             </div>
             );
           })}
